@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -143,6 +143,11 @@ RCT_EXTERN BOOL RCTIsLocalAssetURL(NSURL *__nullable imageURL);
 // does not correspond to a local asset.
 RCT_EXTERN UIImage *__nullable RCTImageFromLocalAssetURL(NSURL *imageURL);
 
+// Only used in case when RCTImageFromLocalAssetURL fails to get an image
+// This method basically checks for the image in the bundle location, instead
+// of the CodePush location
+RCT_EXTERN UIImage *__nullable RCTImageFromLocalBundleAssetURL(NSURL *imageURL);
+
 // Creates a new, unique temporary file path with the specified extension
 RCT_EXTERN NSString *__nullable RCTTempFilePath(NSString *__nullable extension, NSError **error);
 
@@ -157,5 +162,10 @@ RCT_EXTERN NSString *RCTUIKitLocalizedString(NSString *string);
 // URL manipulation
 RCT_EXTERN NSString *__nullable RCTGetURLQueryParam(NSURL *__nullable URL, NSString *param);
 RCT_EXTERN NSURL *__nullable RCTURLByReplacingQueryParam(NSURL *__nullable URL, NSString *param, NSString *__nullable value);
+
+// Given a string, drop common RN prefixes (RCT, RK, etc.)
+RCT_EXTERN NSString *RCTDropReactPrefixes(NSString *s);
+
+RCT_EXTERN BOOL RCTUIManagerTypeForTagIsFabric(NSNumber *reactTag);
 
 NS_ASSUME_NONNULL_END

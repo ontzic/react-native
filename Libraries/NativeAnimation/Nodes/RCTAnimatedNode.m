@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -113,6 +113,16 @@ RCT_NOT_IMPLEMENTED(- (instancetype)init)
   // To be overidden by subclasses
   // This method is called on a node only if it has been marked for update
   // during the current update loop
+}
+
+- (BOOL)isManagedByFabric
+{
+  for (RCTAnimatedNode *child in _childNodes.objectEnumerator) {
+    if ([child isManagedByFabric]) {
+      return YES;
+    }
+  }
+  return NO;
 }
 
 @end

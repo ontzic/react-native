@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -48,15 +48,16 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
 
   /**
    * Nodes that return {@code true} will be treated as "virtual" nodes. That is, nodes that are not
-   * mapped into native views (e.g. nested text node). By default this method returns {@code false}.
+   * mapped into native views or Yoga nodes (e.g. nested text node). By default this method returns
+   * {@code false}.
    */
   boolean isVirtual();
 
   /**
    * Nodes that return {@code true} will be treated as a root view for the virtual nodes tree. It
-   * means that {@link NativeViewHierarchyManager} will not try to perform {@code manageChildren}
-   * operation on such views. Good example is {@code InputText} view that may have children {@code
-   * Text} nodes but this whole hierarchy will be mapped to a single android {@link EditText} view.
+   * means that all of its descendants will be "virtual" nodes. Good example is {@code InputText}
+   * view that may have children {@code Text} nodes but this whole hierarchy will be mapped to a
+   * single android {@link EditText} view.
    */
   boolean isVirtualAnchor();
 
@@ -69,15 +70,12 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
   boolean isYogaLeafNode();
 
   /**
-   * @return a mutable copy of the {@link ReactShadowNode}
+   * When constructing the native tree, nodes that return {@code true} will be treated as leaves.
+   * Instead of adding this view's native children as subviews of it, they will be added as subviews
+   * of an ancestor. In other words, this view wants to support native children but it cannot host
+   * them itself (e.g. it isn't a ViewGroup).
    */
-  T mutableCopy(long instanceHandle);
-
-  T mutableCopyWithNewProps(long instanceHandle, @Nullable ReactStylesDiffMap newProps);
-
-  T mutableCopyWithNewChildren(long instanceHandle);
-
-  T mutableCopyWithNewChildrenAndProps(long instanceHandle, @Nullable ReactStylesDiffMap newProps);
+  boolean hoistNativeChildren();
 
   String getViewClass();
 
@@ -105,14 +103,12 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
 
   void removeAndDisposeAllChildren();
 
-  @Nullable ReactStylesDiffMap getNewProps();
-
   /**
    * This method will be called by {@link UIManagerModule} once per batch, before calculating
    * layout. Will be only called for nodes that are marked as updated with {@link #markUpdated()} or
    * require layouting (marked with {@link #dirty()}).
    */
-  void onBeforeLayout();
+  void onBeforeLayout(NativeViewHierarchyOptimizer nativeViewHierarchyOptimizer);
 
   void updateProperties(ReactStylesDiffMap props);
 
@@ -148,6 +144,12 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
   @Nullable
   T getParent();
 
+  // Returns the node that is responsible for laying out this node.
+  @Nullable
+  T getLayoutParent();
+
+  void setLayoutParent(@Nullable T layoutParent);
+
   /**
    * Get the {@link ThemedReactContext} associated with this {@link ReactShadowNode}. This will
    * never change during the lifetime of a {@link ReactShadowNode} instance, but different instances
@@ -160,6 +162,8 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
   boolean shouldNotifyOnLayout();
 
   void calculateLayout();
+
+  void calculateLayout(float width, float height);
 
   boolean hasNewLayout();
 
@@ -189,6 +193,8 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
   void setIsLayoutOnly(boolean isLayoutOnly);
 
   boolean isLayoutOnly();
+
+  NativeKind getNativeKind();
 
   int getTotalNativeChildren();
 
@@ -360,34 +366,11 @@ public interface ReactShadowNode<T extends ReactShadowNode> {
 
   void dispose();
 
-  /**
-   * @return an immutable {@link List<ReactShadowNode>} containing the children of this
-   * {@link ReactShadowNode}.
-   */
-  List<ReactShadowNode> getChildrenList();
+  void setMeasureSpecs(int widthMeasureSpec, int heightMeasureSpec);
 
-  /**
-   * @return the {@link ReactShadowNode} that was used during the cloning mechanism to create
-   * this {@link ReactShadowNode} or null if this object was not created using a clone operation.
-   */
-  @Nullable ReactShadowNode getOriginalReactShadowNode();
+  Integer getWidthMeasureSpec();
 
-  void setOriginalReactShadowNode(@Nullable ReactShadowNode node);
+  Integer getHeightMeasureSpec();
 
-  long getInstanceHandle();
-
-  void setInstanceHandle(long instanceHandle);
-
-  /**
-   * Mark this {@link ReactShadowNode} as sealed. This means that the node was already committed
-   * and it should not be updated anymore.
-   */
-  void markAsSealed();
-
-  /**
-   * @return a {@link boolean} that represents if the {@link ReactShadowNode} is sealed.
-   */
-  boolean isSealed();
-
-  void updateScreenLayout(ReactShadowNode prevNode);
+  Iterable<? extends ReactShadowNode> calculateLayoutOnChildren();
 }

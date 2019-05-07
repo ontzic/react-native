@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -45,6 +45,11 @@ public interface DevSupportManager extends NativeModuleCallExceptionHandler {
   void handleReloadJS();
   void reloadJSFromServer(final String bundleURL);
   void isPackagerRunning(PackagerStatusCallback callback);
+  void setHotModuleReplacementEnabled(final boolean isHotModuleReplacementEnabled);
+  void setRemoteJSDebugEnabled(final boolean isRemoteJSDebugEnabled);
+  void setReloadOnJSChangeEnabled(final boolean isReloadOnJSChangeEnabled);
+  void setFpsDebugEnabled(final boolean isFpsDebugEnabled);
+  void toggleElementInspector();
   @Nullable File downloadBundleResourceFromUrlSync(
       final String resourceURL,
       final File outputFile);

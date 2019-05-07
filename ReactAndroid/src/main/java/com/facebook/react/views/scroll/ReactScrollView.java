@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,13 +7,12 @@
 
 package com.facebook.react.views.scroll;
 
-import android.annotation.TargetApi;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.support.v4.view.ViewCompat;
+import androidx.core.view.ViewCompat;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -24,10 +23,11 @@ import android.widget.ScrollView;
 import com.facebook.infer.annotation.Assertions;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.common.ReactConstants;
+import com.facebook.react.uimanager.events.NativeGestureUtil;
 import com.facebook.react.uimanager.MeasureSpecAssertions;
 import com.facebook.react.uimanager.ReactClippingViewGroup;
 import com.facebook.react.uimanager.ReactClippingViewGroupHelper;
-import com.facebook.react.uimanager.events.NativeGestureUtil;
+import com.facebook.react.uimanager.ViewProps;
 import com.facebook.react.views.view.ReactViewBackgroundManager;
 
 import java.lang.reflect.Field;
@@ -41,7 +41,6 @@ import javax.annotation.Nullable;
  * <p>ReactScrollView only supports vertical scrolling. For horizontal scrolling,
  * use {@link ReactHorizontalScrollView}.
  */
-@TargetApi(11)
 public class ReactScrollView extends ScrollView implements ReactClippingViewGroup, ViewGroup.OnHierarchyChangeListener, View.OnLayoutChangeListener {
 
   private static @Nullable Field sScrollerField;
@@ -54,6 +53,7 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
 
   private boolean mActivelyScrolling;
   private @Nullable Rect mClippingRect;
+  private @Nullable String mOverflow = ViewProps.HIDDEN;
   private boolean mDragging;
   private boolean mPagingEnabled = false;
   private @Nullable Runnable mPostTouchRunnable;
@@ -67,6 +67,8 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
   private int mSnapInterval = 0;
   private float mDecelerationRate = 0.985f;
   private @Nullable List<Integer> mSnapOffsets;
+  private boolean mSnapToStart = true;
+  private boolean mSnapToEnd = true;
   private View mContentView;
   private ReactViewBackgroundManager mReactBackgroundManager;
 
@@ -155,8 +157,21 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
     mSnapOffsets = snapOffsets;
   }
 
+  public void setSnapToStart(boolean snapToStart) {
+    mSnapToStart = snapToStart;
+  }
+
+  public void setSnapToEnd(boolean snapToEnd) {
+    mSnapToEnd = snapToEnd;
+  }
+
   public void flashScrollIndicators() {
     awakenScrollBars();
+  }
+
+  public void setOverflow(String overflow) {
+    mOverflow = overflow;
+    invalidate();
   }
 
   @Override
@@ -187,35 +202,6 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
     super.onAttachedToWindow();
     if (mRemoveClippedSubviews) {
       updateClippingRect();
-    }
-  }
-
-  /**
-   * Since ReactScrollView handles layout changes on JS side, it does not call super.onlayout
-   * due to which mIsLayoutDirty flag in ScrollView remains true and prevents scrolling to child
-   * when requestChildFocus is called.
-   * Overriding this method and scrolling to child without checking any layout dirty flag. This will fix
-   * focus navigation issue for KeyEvents which are not handled by ScrollView, for example: KEYCODE_TAB.
-   */
-  @Override
-  public void requestChildFocus(View child, View focused) {
-    if (focused != null) {
-      scrollToChild(focused);
-    }
-    super.requestChildFocus(child, focused);
-  }
-
-  private void scrollToChild(View child) {
-    Rect tempRect = new Rect();
-    child.getDrawingRect(tempRect);
-
-    /* Offset from child's local coordinates to ScrollView coordinates */
-    offsetDescendantRectToMyCoords(child, tempRect);
-
-    int scrollDelta = computeScrollDeltaToGetChildRectOnScreen(tempRect);
-
-    if (scrollDelta != 0) {
-      scrollBy(0, scrollDelta);
     }
   }
 
@@ -321,8 +307,21 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
 
   @Override
   public void fling(int velocityY) {
+    // Workaround.
+    // On Android P if a ScrollView is inverted, we will get a wrong sign for
+    // velocityY (see https://issuetracker.google.com/issues/112385925). 
+    // At the same time, mOnScrollDispatchHelper tracks the correct velocity direction. 
+    //
+    // Hence, we can use the absolute value from whatever the OS gives
+    // us and use the sign of what mOnScrollDispatchHelper has tracked.
+    float signum = Math.signum(mOnScrollDispatchHelper.getYFlingVelocity());
+    if (signum == 0) {
+      signum = Math.signum(velocityY);
+    }
+    final int correctedVelocityY = (int)(Math.abs(velocityY) * signum);
+
     if (mPagingEnabled) {
-      flingAndSnap(velocityY);
+      flingAndSnap(correctedVelocityY);
     } else if (mScroller != null) {
       // FB SCROLLVIEW CHANGE
 
@@ -338,7 +337,7 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
         getScrollX(), // startX
         getScrollY(), // startY
         0, // velocityX
-        velocityY, // velocityY
+        correctedVelocityY, // velocityY
         0, // minX
         0, // maxX
         0, // minY
@@ -351,9 +350,9 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
 
       // END FB SCROLLVIEW CHANGE
     } else {
-      super.fling(velocityY);
+      super.fling(correctedVelocityY);
     }
-    handlePostTouchScrolling(0, velocityY);
+    handlePostTouchScrolling(0, correctedVelocityY);
   }
 
   private void enableFpsListener() {
@@ -392,7 +391,15 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
       }
     }
     getDrawingRect(mRect);
-    canvas.clipRect(mRect);
+
+    switch (mOverflow) {
+      case ViewProps.VISIBLE:
+        break;
+      default:
+        canvas.clipRect(mRect);
+        break;
+    }
+
     super.draw(canvas);
   }
 
@@ -551,6 +558,9 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
 
     // get the nearest snap points to the target offset
     if (mSnapOffsets != null) {
+      firstOffset = mSnapOffsets.get(0);
+      lastOffset = mSnapOffsets.get(mSnapOffsets.size() - 1);
+
       for (int i = 0; i < mSnapOffsets.size(); i ++) {
         int offset = mSnapOffsets.get(i);
 
@@ -570,7 +580,7 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
       double interval = (double) getSnapInterval();
       double ratio = (double) targetOffset / interval;
       smallerOffset = (int) (Math.floor(ratio) * interval);
-      largerOffset = (int) (Math.ceil(ratio) * interval);
+      largerOffset = Math.min((int) (Math.ceil(ratio) * interval), maximumOffset);
     }
 
     // Calculate the nearest offset
@@ -578,10 +588,31 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
       ? smallerOffset
       : largerOffset;
 
-    // Chose the correct snap offset based on velocity
-    if (velocityY > 0) {
+    // if scrolling after the last snap offset and snapping to the
+    // end of the list is disabled, then we allow free scrolling
+    if (!mSnapToEnd && targetOffset >= lastOffset) {
+      if (getScrollY() >= lastOffset) {
+        // free scrolling
+      } else {
+        // snap to end
+        targetOffset = lastOffset;
+      }
+    } else if (!mSnapToStart && targetOffset <= firstOffset) {
+      if (getScrollY() <= firstOffset) {
+        // free scrolling
+      } else {
+        // snap to beginning
+        targetOffset = firstOffset;
+      }
+    } else if (velocityY > 0) {
+      // when snapping velocity can feel sluggish for slow swipes
+      velocityY += (int) ((largerOffset - targetOffset) * 10.0);
+
       targetOffset = largerOffset;
     } else if (velocityY < 0) {
+      // when snapping velocity can feel sluggish for slow swipes
+      velocityY -= (int) ((targetOffset - smallerOffset) * 10.0);
+
       targetOffset = smallerOffset;
     } else {
       targetOffset = nearestOffset;
@@ -637,7 +668,7 @@ public class ReactScrollView extends ScrollView implements ReactClippingViewGrou
 
   @Override
   protected void onOverScrolled(int scrollX, int scrollY, boolean clampedX, boolean clampedY) {
-    if (mScroller != null) {
+    if (mScroller != null && mContentView != null) {
       // FB SCROLLVIEW CHANGE
 
       // This is part two of the reimplementation of fling to fix the bounce-back bug. See #fling() for

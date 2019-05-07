@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -10,10 +10,7 @@
 
 'use strict';
 
-export type RNTesterExample = {
-  key: string,
-  module: Object,
-};
+import type {RNTesterExample} from './Shared/RNTesterTypes';
 
 const ComponentExamples: Array<RNTesterExample> = [
   {
@@ -35,18 +32,6 @@ const ComponentExamples: Array<RNTesterExample> = [
   {
     key: 'ImageExample',
     module: require('./ImageExample'),
-  },
-  {
-    key: 'ListViewExample',
-    module: require('./ListViewExample'),
-  },
-  {
-    key: 'ListViewGridLayoutExample',
-    module: require('./ListViewGridLayoutExample'),
-  },
-  {
-    key: 'ListViewPagingExample',
-    module: require('./ListViewPagingExample'),
   },
   {
     key: 'ModalExample',
@@ -87,14 +72,6 @@ const ComponentExamples: Array<RNTesterExample> = [
     module: require('./StatusBarExample'),
   },
   {
-    key: 'SwipeableFlatListExample',
-    module: require('./SwipeableFlatListExample'),
-  },
-  {
-    key: 'SwipeableListViewExample',
-    module: require('./SwipeableListViewExample'),
-  },
-  {
     key: 'SwitchExample',
     module: require('./SwitchExample'),
   },
@@ -130,13 +107,13 @@ const ComponentExamples: Array<RNTesterExample> = [
      * when making Flow check .android.js files. */
     module: require('./ViewPagerAndroidExample'),
   },
-  {
-    key: 'WebViewExample',
-    module: require('./WebViewExample'),
-  },
 ];
 
 const APIExamples: Array<RNTesterExample> = [
+  {
+    key: 'AccessibilityExample',
+    module: require('./AccessibilityExample'),
+  },
   {
     key: 'AccessibilityAndroidExample',
     /* $FlowFixMe(>=0.78.0 site=react_native_android_fb) This issue was found
@@ -168,16 +145,16 @@ const APIExamples: Array<RNTesterExample> = [
     module: require('./ClipboardExample'),
   },
   {
+    key: 'CrashExample',
+    module: require('./CrashExample'),
+  },
+  {
     key: 'DatePickerAndroidExample',
     module: require('./DatePickerAndroidExample'),
   },
   {
     key: 'Dimensions',
     module: require('./DimensionsExample'),
-  },
-  {
-    key: 'GeolocationExample',
-    module: require('./GeolocationExample'),
   },
   {
     key: 'ImageEditingExample',

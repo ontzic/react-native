@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -12,14 +12,10 @@
 
 const BatchedBridge = require('BatchedBridge');
 const EventEmitter = require('EventEmitter');
-const Set = require('Set');
 const TaskQueue = require('TaskQueue');
 
 const infoLog = require('infoLog');
-const invariant = require('fbjs/lib/invariant');
-/* $FlowFixMe(>=0.54.0 site=react_native_oss) This comment suppresses an error
- * found when Flow v0.54 was deployed. To see the error delete this comment and
- * run Flow. */
+const invariant = require('invariant');
 const keyMirror = require('fbjs/lib/keyMirror');
 
 type Handle = number;
@@ -27,8 +23,8 @@ import type {Task} from 'TaskQueue';
 
 const _emitter = new EventEmitter();
 
-const DEBUG_DELAY = 0;
-const DEBUG = false;
+const DEBUG_DELAY: 0 = 0;
+const DEBUG: false = false;
 
 /**
  * InteractionManager allows long-running work to be scheduled after any
@@ -125,7 +121,7 @@ const InteractionManager = {
    * Notify manager that an interaction has started.
    */
   createInteractionHandle(): Handle {
-    DEBUG && infoLog('create interaction handle');
+    DEBUG && infoLog('InteractionManager: create interaction handle');
     _scheduleUpdate();
     const handle = ++_inc;
     _addInteractionSet.add(handle);
@@ -136,8 +132,8 @@ const InteractionManager = {
    * Notify manager that an interaction has completed.
    */
   clearInteractionHandle(handle: Handle) {
-    DEBUG && infoLog('clear interaction handle');
-    invariant(!!handle, 'Must provide a handle to clear.');
+    DEBUG && infoLog('InteractionManager: clear interaction handle');
+    invariant(!!handle, 'InteractionManager: Must provide a handle to clear.');
     _scheduleUpdate();
     _addInteractionSet.delete(handle);
     _deleteInteractionSet.add(handle);

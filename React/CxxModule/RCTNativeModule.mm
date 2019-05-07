@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -67,6 +67,8 @@ void RCTNativeModule::invoke(unsigned int methodId, folly::dynamic &&params, int
     if (callId != -1) {
       fbsystrace_end_async_flow(TRACE_TAG_REACT_APPS, "native", callId);
     }
+    #else
+    (void)(callId);
     #endif
     invokeInner(weakBridge, weakModuleData, methodId, std::move(params));
   };
@@ -82,6 +84,13 @@ void RCTNativeModule::invoke(unsigned int methodId, folly::dynamic &&params, int
     RCTLogWarn(@"Attempted to invoke `%u` (method ID) on `%@` (NativeModule name) with an invalid bridge.",
                methodId, m_moduleData.name);
   }
+
+  #ifdef RCT_DEV
+  if (!queue) {
+    RCTLog(@"Attempted to invoke `%u` (method ID) on `%@` (NativeModule name) without a method queue.",
+           methodId, m_moduleData.name);
+  }
+  #endif
 }
 
 MethodCallResult RCTNativeModule::callSerializableNativeHook(unsigned int reactMethodId, folly::dynamic &&params) {
@@ -110,10 +119,14 @@ static MethodCallResult invokeInner(RCTBridge *bridge, RCTModuleData *moduleData
       @throw exception;
     }
 
+#if RCT_DEBUG
     NSString *message = [NSString stringWithFormat:
                          @"Exception '%@' was thrown while invoking %s on target %@ with params %@\ncallstack: %@",
                          exception, method.JSMethodName, moduleData.name, objcParams, exception.callStackSymbols];
     RCTFatal(RCTErrorWithMessage(message));
+#else
+    RCTFatalException(exception);
+#endif
   }
 
   return folly::none;

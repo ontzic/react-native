@@ -1,15 +1,17 @@
+// Copyright (c) Facebook, Inc. and its affiliates.
+//
+// This source code is licensed under the MIT license found in the
+// LICENSE file in the root directory of this source tree.
+
 #import "RCTInspectorDevServerHelper.h"
 
 #if RCT_DEV
 
-#import <jschelpers/JSCWrapper.h>
-#import <React/RCTUIKit.h> // TODO(macOS ISS#2323203)
+#import <UIKit/UIKit.h>
 #import <React/RCTLog.h>
 
 #import "RCTDefines.h"
 #import "RCTInspectorPackagerConnection.h"
-
-using namespace facebook::react;
 
 static NSString *const kDebuggerMsgDisable = @"{ \"id\":1,\"method\":\"Debugger.disable\" }";
 
@@ -30,13 +32,9 @@ static NSString *getServerHost(NSURL *bundleURL, NSNumber *port)
 
 static NSURL *getInspectorDeviceUrl(NSURL *bundleURL)
 {
-  NSNumber *inspectorProxyPort = @8082;
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
-  NSString *escapedDeviceName = [[[UIDevice currentDevice] name] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-#else // [TODO(macOS ISS#2323203)
-  NSString *escapedDeviceName = @"";
-#endif // ]TODO(macOS ISS#2323203)
-  NSString *escapedAppName = [[[NSBundle mainBundle] bundleIdentifier] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+  NSNumber *inspectorProxyPort = @8081;
+  NSString *escapedDeviceName = [[[UIDevice currentDevice] name] stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
+  NSString *escapedAppName = [[[NSBundle mainBundle] bundleIdentifier] stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLQueryAllowedCharacterSet];
   return [NSURL URLWithString:[NSString stringWithFormat:@"http://%@/inspector/device?name=%@&app=%@",
                                                         getServerHost(bundleURL, inspectorProxyPort),
                                                         escapedDeviceName,
@@ -46,12 +44,8 @@ static NSURL *getInspectorDeviceUrl(NSURL *bundleURL)
 static NSURL *getAttachDeviceUrl(NSURL *bundleURL, NSString *title)
 {
   NSNumber *metroBundlerPort = @8081;
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
-  NSString *escapedDeviceName = [[[UIDevice currentDevice] name] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
-#else // [TODO(macOS ISS#2323203)
-  NSString *escapedDeviceName = @"";
-#endif // ]TODO(macOS ISS#2323203)
-  NSString *escapedAppName = [[[NSBundle mainBundle] bundleIdentifier] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+  NSString *escapedDeviceName = [[[UIDevice currentDevice] name] stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLHostAllowedCharacterSet];
+  NSString *escapedAppName = [[[NSBundle mainBundle] bundleIdentifier] stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLHostAllowedCharacterSet];
   return [NSURL URLWithString:[NSString stringWithFormat:@"http://%@/attach-debugger-nuclide?title=%@&device=%@&app=%@",
                                getServerHost(bundleURL, metroBundlerPort),
                                title,
@@ -73,7 +67,6 @@ static void sendEventToAllConnections(NSString *event)
 }
 
 static void displayErrorAlert(UIViewController *view, NSString *message) {
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
   UIAlertController *alert =
       [UIAlertController alertControllerWithTitle:nil
                                           message:message
@@ -85,20 +78,6 @@ static void displayErrorAlert(UIViewController *view, NSString *message) {
       ^{
         [alert dismissViewControllerAnimated:YES completion:nil];
       });
-#else // [TODO(macOS ISS#2323203)
-  NSAlert *alert = [[NSAlert alloc] init];
-  [alert setMessageText:message];
-  [alert addButtonWithTitle:@"OK"];
-  [alert setAlertStyle:NSWarningAlertStyle];
-  [alert beginSheetModalForWindow:[NSApp keyWindow] completionHandler:nil];
-  
-  dispatch_after(
-      dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC * 2.5),
-      dispatch_get_main_queue(),
-      ^{
-        [[NSApp keyWindow] endSheet:[alert window]];
-      });
-#endif // ]TODO(macOS ISS#2323203)
 }
 
 + (void)attachDebugger:(NSString *)owner
@@ -112,8 +91,8 @@ static void displayErrorAlert(UIViewController *view, NSString *message) {
 
   __weak UIViewController *viewCapture = view;
   [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:
-    ^(NSData *_Nullable data,
-      NSURLResponse *_Nullable response,
+    ^(__unused NSData *_Nullable data,
+      __unused NSURLResponse *_Nullable response,
       NSError *_Nullable error) {
       UIViewController *viewCaptureStrong = viewCapture;
       if (error != nullptr && viewCaptureStrong != nullptr) {

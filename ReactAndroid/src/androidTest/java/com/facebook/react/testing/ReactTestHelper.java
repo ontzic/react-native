@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2014-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,11 +7,14 @@
 
 package com.facebook.react.testing;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import javax.annotation.Nullable;
 
 import android.app.Instrumentation;
 import android.content.Context;
-import android.support.test.InstrumentationRegistry;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -20,6 +23,7 @@ import com.facebook.react.NativeModuleRegistryBuilder;
 import com.facebook.react.R;
 import com.facebook.react.ReactInstanceManager;
 import com.facebook.react.ReactInstanceManagerBuilder;
+import com.facebook.react.ReactPackage;
 import com.facebook.react.bridge.CatalystInstance;
 import com.facebook.react.bridge.JavaScriptModuleRegistry;
 import com.facebook.react.bridge.NativeModule;
@@ -29,10 +33,10 @@ import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.bridge.queue.ReactQueueConfigurationSpec;
 import com.facebook.react.bridge.CatalystInstanceImpl;
 import com.facebook.react.bridge.JSBundleLoader;
-import com.facebook.react.bridge.JSCJavaScriptExecutorFactory;
 import com.facebook.react.bridge.JavaScriptExecutor;
+import com.facebook.react.jscexecutor.JSCExecutorFactory;
 import com.facebook.react.modules.core.ReactChoreographer;
-
+import com.facebook.react.uimanager.ViewManager;
 import com.android.internal.util.Predicate;
 
 public class ReactTestHelper {
@@ -50,14 +54,24 @@ public class ReactTestHelper {
       }
 
       @Override
-      public ReactInstanceEasyBuilder addNativeModule(NativeModule nativeModule) {
+      public ReactInstanceEasyBuilder addNativeModule(final NativeModule nativeModule) {
         if (mNativeModuleRegistryBuilder == null) {
           mNativeModuleRegistryBuilder = new NativeModuleRegistryBuilder(
             (ReactApplicationContext) mContext,
             null);
         }
         Assertions.assertNotNull(nativeModule);
-        mNativeModuleRegistryBuilder.addNativeModule(nativeModule);
+        mNativeModuleRegistryBuilder.processPackage(new ReactPackage(){
+        	@Override
+        	public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
+        	   return Collections.emptyList();
+        	}
+
+        	@Override
+        	public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
+        		return Arrays.asList(nativeModule);
+        	}
+        });
         return this;
       }
 
@@ -70,7 +84,7 @@ public class ReactTestHelper {
         }
         JavaScriptExecutor executor = null;
         try {
-          executor = new JSCJavaScriptExecutorFactory("ReactTestHelperApp", "ReactTestHelperDevice").create();
+          executor = new JSCExecutorFactory("ReactTestHelperApp", "ReactTestHelperDevice").create();
         } catch (Exception e) {
           throw new RuntimeException(e);
         }
@@ -105,12 +119,13 @@ public class ReactTestHelper {
   }
 
   public static ReactTestFactory getReactTestFactory() {
-    Instrumentation inst = InstrumentationRegistry.getInstrumentation();
-    if (!(inst instanceof ReactTestFactory)) {
+// TODO: re-enable after cleanup of android-x migration
+//    Instrumentation inst = InstrumentationRegistry.getInstrumentation();
+//    if (!(inst instanceof ReactTestFactory)) {
       return new DefaultReactTestFactory();
-    }
-
-    return (ReactTestFactory) inst;
+//    }
+//
+//    return (ReactTestFactory) inst;
   }
 
   public static ReactTestFactory.ReactInstanceEasyBuilder catalystInstanceBuilder(
@@ -136,13 +151,14 @@ public class ReactTestHelper {
           final CatalystInstance instance = builder.build();
           testCase.initializeWithInstance(instance);
           instance.runJSBundle();
-          InstrumentationRegistry.getInstrumentation().runOnMainSync(new Runnable() {
-            @Override
-            public void run() {
+// TODO: re-enable after cleanup of android-x migration
+//          InstrumentationRegistry.getInstrumentation().runOnMainSync(new Runnable() {
+//            @Override
+//            public void run() {
               ReactChoreographer.initialize();
               instance.initialize();
-            }
-          });
+//            }
+//          });
           testCase.waitForBridgeAndUIIdle();
           return instance;
         }

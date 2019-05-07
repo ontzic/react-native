@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -325,4 +325,28 @@
   return self;
 }
 
+#pragma mark - Debug
+
+- (void)react_addRecursiveDescriptionToString:(NSMutableString *)string atLevel:(NSUInteger)level
+{
+  for (NSUInteger i = 0; i < level; i++) {
+    [string appendString:@"   | "];
+  }
+
+  [string appendString:self.description];
+  [string appendString:@"\n"];
+
+  for (UIView *subview in self.subviews) {
+    [subview react_addRecursiveDescriptionToString:string atLevel:level + 1];
+  }
+}
+
+- (NSString *)react_recursiveDescription
+{
+  NSMutableString *description = [NSMutableString string];
+  [self react_addRecursiveDescriptionToString:description atLevel:0];
+  return description;
+}
+
 @end
+

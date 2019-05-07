@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -10,57 +10,56 @@
 
 'use strict';
 
-const EdgeInsetsPropType = require('EdgeInsetsPropType');
+const DeprecatedEdgeInsetsPropType = require('DeprecatedEdgeInsetsPropType');
 const React = require('React');
 const PropTypes = require('prop-types');
-const TimerMixin = require('react-timer-mixin');
 const Touchable = require('Touchable');
 const View = require('View');
 
 const createReactClass = require('create-react-class');
 const ensurePositiveDelayProps = require('ensurePositiveDelayProps');
-const warning = require('fbjs/lib/warning');
 
 const {
-  AccessibilityComponentTypes,
-  AccessibilityRoles,
-  AccessibilityStates,
-  AccessibilityTraits,
-} = require('ViewAccessibility');
+  DeprecatedAccessibilityRoles,
+  DeprecatedAccessibilityStates,
+} = require('DeprecatedViewAccessibility');
 
-import type {PressEvent} from 'CoreEventTypes';
+import type {SyntheticEvent, LayoutEvent, PressEvent} from 'CoreEventTypes';
 import type {EdgeInsetsProp} from 'EdgeInsetsPropType';
-import type {
-  AccessibilityComponentType,
-  AccessibilityRole,
-  AccessibilityStates as AccessibilityStatesFlow,
-  AccessibilityTraits as AccessibilityTraitsFlow,
-} from 'ViewAccessibility';
+import type {AccessibilityRole, AccessibilityStates} from 'ViewAccessibility';
 
-// [TODO(macOS ISS#2323203)
-const {
-  DraggedTypes
-} = require('DraggedType');
-import type {
-  DraggedTypesType
-} from 'DraggedType';
-// ]TODO(macOS ISS#2323203)
+type TargetEvent = SyntheticEvent<
+  $ReadOnly<{|
+    target: number,
+  |}>,
+>;
+
+type BlurEvent = TargetEvent;
+type FocusEvent = TargetEvent;
 
 const PRESS_RETENTION_OFFSET = {top: 20, left: 20, right: 20, bottom: 30};
 
+const OVERRIDE_PROPS = [
+  'accessibilityLabel',
+  'accessibilityHint',
+  'accessibilityIgnoresInvertColors',
+  'accessibilityRole',
+  'accessibilityStates',
+  'hitSlop',
+  'nativeID',
+  'onBlur',
+  'onFocus',
+  'onLayout',
+  'testID',
+];
+
 export type Props = $ReadOnly<{|
   accessible?: ?boolean,
-  accessibilityComponentType?: ?AccessibilityComponentType,
-  accessibilityLabel?:
-    | null
-    | React$PropType$Primitive<any>
-    | string
-    | Array<any>
-    | any,
-  accessibilityHint?: string,
+  accessibilityLabel?: ?Stringish,
+  accessibilityHint?: ?Stringish,
+  accessibilityIgnoresInvertColors?: ?boolean,
   accessibilityRole?: ?AccessibilityRole,
-  accessibilityStates?: ?AccessibilityStatesFlow,
-  accessibilityTraits?: ?AccessibilityTraitsFlow,
+  accessibilityStates?: ?AccessibilityStates,
   children?: ?React.Node,
   delayLongPress?: ?number,
   delayPressIn?: ?number,
@@ -68,21 +67,14 @@ export type Props = $ReadOnly<{|
   disabled?: ?boolean,
   hitSlop?: ?EdgeInsetsProp,
   nativeID?: ?string,
-  onLayout?: ?Function,
-  onLongPress?: ?Function,
-  onPress?: ?Function,
-  onPressIn?: ?Function,
-  onPressOut?: ?Function,
-  onAccessibilityTap?: ?Function, // TODO(OSS Candidate ISS#2710739)
-  acceptsKeyboardFocus?: ?boolean, // [TODO(macOS ISS#2323203)
-  onMouseEnter?: ?Function,
-  onMouseLeave?: ?Function,
-  onDragEnter?: ?Function,
-  onMouseLeave?: ?Function,
-  onDragEnter?: ?Function,
-  onDragLeave?: ?Function,
-  onDrop?: ?Function,
-  draggedTypes?: ?DraggedTypesType, // ]TODO(macOS ISS#2323203)
+  touchSoundDisabled?: ?boolean,
+  onBlur?: ?(e: BlurEvent) => void,
+  onFocus?: ?(e: FocusEvent) => void,
+  onLayout?: ?(event: LayoutEvent) => mixed,
+  onLongPress?: ?(event: PressEvent) => mixed,
+  onPress?: ?(event: PressEvent) => mixed,
+  onPressIn?: ?(event: PressEvent) => mixed,
+  onPressOut?: ?(event: PressEvent) => mixed,
   pressRetentionOffset?: ?EdgeInsetsProp,
   rejectResponderTermination?: ?boolean,
   testID?: ?string,
@@ -97,23 +89,17 @@ export type Props = $ReadOnly<{|
  */
 const TouchableWithoutFeedback = ((createReactClass({
   displayName: 'TouchableWithoutFeedback',
-  mixins: [TimerMixin, Touchable.Mixin],
+  mixins: [Touchable.Mixin],
 
   propTypes: {
     accessible: PropTypes.bool,
     accessibilityLabel: PropTypes.node,
     accessibilityHint: PropTypes.string,
-    accessibilityComponentType: PropTypes.oneOf(AccessibilityComponentTypes),
-    accessibilityRole: PropTypes.oneOf(AccessibilityRoles),
+    accessibilityIgnoresInvertColors: PropTypes.bool,
+    accessibilityRole: PropTypes.oneOf(DeprecatedAccessibilityRoles),
     accessibilityStates: PropTypes.arrayOf(
-      PropTypes.oneOf(AccessibilityStates),
+      PropTypes.oneOf(DeprecatedAccessibilityStates),
     ),
-    accessibilityTraits: PropTypes.oneOfType([
-      PropTypes.oneOf(AccessibilityTraits),
-      PropTypes.arrayOf(PropTypes.oneOf(AccessibilityTraits)),
-    ]),
-    onAccessibilityTap: PropTypes.func, // TODO(OSS Candidate ISS#2710739)
-
     /**
      * When `accessible` is true (which is the default) this may be called when
      * the OS-specific concept of "focus" occurs. Some platforms may not have
@@ -130,39 +116,6 @@ const TouchableWithoutFeedback = ((createReactClass({
      * If true, disable all interactions for this component.
      */
     disabled: PropTypes.bool,
-    /**
-     * Called when the mouse enters the touchable element
-     */
-    onMouseEnter: PropTypes.func, // TODO(macOS ISS#2323203)
-    /**
-     * Called when the mouse exits the touchable element
-     */
-    onMouseLeave: PropTypes.func, // TODO(macOS ISS#2323203)
-    /**
-     * Fired when a dragged element enters a valid drop target
-     */
-    onDragEnter: PropTypes.func, // TODO(macOS ISS#2323203)
-    /**
-     * Fired when a dragged element leaves a valid drop target
-     */
-    onDragLeave: PropTypes.func, // TODO(macOS ISS#2323203)
-    /**
-     * Fired when an element is dropped on a valid drop target
-     */
-    onDrop: PropTypes.func, // TODO(macOS ISS#2323203)
-    /**
-     * Enables Drag'n'Drop Support for certain types of dragged types
-     *
-     * Possible values for `draggedTypes` are:
-     *
-     * - `'fileUrl'`
-     *
-     * @platform macos
-     */
-    draggedTypes: PropTypes.oneOfType([ // TODO(macOS ISS#2323203)
-      PropTypes.oneOf(DraggedTypes),
-      PropTypes.arrayOf(PropTypes.oneOf(DraggedTypes)),
-    ]),
     /**
      * Called when the touch is released, but not if cancelled (e.g. by a scroll
      * that steals the responder lock).
@@ -183,6 +136,10 @@ const TouchableWithoutFeedback = ((createReactClass({
      *   `{nativeEvent: {layout: {x, y, width, height}}}`
      */
     onLayout: PropTypes.func,
+    /**
+     * If true, doesn't play system sound on touch (Android Only)
+     **/
+    touchSoundDisabled: PropTypes.bool,
 
     onLongPress: PropTypes.func,
 
@@ -208,7 +165,7 @@ const TouchableWithoutFeedback = ((createReactClass({
      * reactivated! Move it back and forth several times while the scroll view
      * is disabled. Ensure you pass in a constant to reduce memory allocations.
      */
-    pressRetentionOffset: EdgeInsetsPropType,
+    pressRetentionOffset: DeprecatedEdgeInsetsPropType,
     /**
      * This defines how far your touch can start away from the button. This is
      * added to `pressRetentionOffset` when moving off of the button.
@@ -217,7 +174,7 @@ const TouchableWithoutFeedback = ((createReactClass({
      * of sibling views always takes precedence if a touch hits two overlapping
      * views.
      */
-    hitSlop: EdgeInsetsPropType,
+    hitSlop: DeprecatedEdgeInsetsPropType,
   },
 
   getInitialState: function() {
@@ -286,22 +243,20 @@ const TouchableWithoutFeedback = ((createReactClass({
         Touchable.renderDebugView({color: 'red', hitSlop: this.props.hitSlop}),
       );
     }
+
+    const overrides = {};
+    for (const prop of OVERRIDE_PROPS) {
+      if (this.props[prop] !== undefined) {
+        overrides[prop] = this.props[prop];
+      }
+    }
+
     return (React: any).cloneElement(child, {
+      ...overrides,
       accessible: this.props.accessible !== false,
-      accessibilityLabel: this.props.accessibilityLabel,
-      accessibilityHint: this.props.accessibilityHint,
-      accessibilityComponentType: this.props.accessibilityComponentType,
-      accessibilityRole: this.props.accessibilityRole,
-      accessibilityStates: this.props.accessibilityStates,
-      accessibilityTraits: this.props.accessibilityTraits,
-      onAccessibilityTap: this.props.onAccessibilityTap, // TODO(OSS Candidate ISS#2710739)
-      acceptsKeyboardFocus: (this.props.acceptsKeyboardFocus === undefined || this.props.acceptsKeyboardFocus) && !this.props.disabled, // TODO(macOS ISS#2323203)
-      enableFocusRing: (this.props.enableFocusRing === true && !this.props.disabled), // TODO(macOS ISS#2323203)
-      tabIndex: this.props.tabIndex, // TODO(win ISS#2323203)
-      nativeID: this.props.nativeID,
-      testID: this.props.testID,
-      onLayout: this.props.onLayout,
-      hitSlop: this.props.hitSlop,
+      clickable:
+        this.props.clickable !== false && this.props.onPress !== undefined,
+      onClick: this.touchableHandlePress,
       onStartShouldSetResponder: this.touchableHandleStartShouldSetResponder,
       onResponderTerminationRequest: this
         .touchableHandleResponderTerminationRequest,
@@ -309,15 +264,6 @@ const TouchableWithoutFeedback = ((createReactClass({
       onResponderMove: this.touchableHandleResponderMove,
       onResponderRelease: this.touchableHandleResponderRelease,
       onResponderTerminate: this.touchableHandleResponderTerminate,
-      tooltip: this.props.tooltip,  // TODO(macOS/win ISS#2323203)
-      clickable: this.props.clickable !== false && this.props.onPress !== undefined, // TODO(android ISS)
-      onClick: this.touchableHandlePress, // TODO(android ISS)
-      onMouseEnter: this.props.onMouseEnter, // [TODO(macOS ISS#2323203)
-      onMouseLeave: this.props.onMouseLeave,
-      onDragEnter: this.props.onDragEnter,
-      onDragLeave: this.props.onDragLeave,
-      onDrop: this.props.onDrop,
-      draggedTypes: this.props.draggedTypes, // ]TODO(macOS ISS#2323203)
       children,
     });
   },

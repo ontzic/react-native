@@ -1,4 +1,4 @@
-// Copyright (c) 2004-present, Facebook, Inc.
+// Copyright (c) Facebook, Inc. and its affiliates.
 
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
@@ -20,14 +20,13 @@
 #include <cxxreact/ModuleRegistry.h>
 #include <cxxreact/RecoverableError.h>
 #include <cxxreact/RAMBundleRegistry.h>
-#include <cxxreact/Platform.h>
-#include <fb/Environment.h>
 #include <fb/log.h>
 #include <fb/fbjni/ByteBuffer.h>
 #include <folly/dynamic.h>
 #include <folly/Memory.h>
 #include <jni/Countable.h>
 #include <jni/LocalReference.h>
+#include <jsireact/JSCallInvokerHolder.h>
 
 #include "CxxModuleWrapper.h"
 #include "JavaScriptExecutorHolder.h"
@@ -102,7 +101,6 @@ CatalystInstanceImpl::~CatalystInstanceImpl() {
 void CatalystInstanceImpl::registerNatives() {
   registerHybrid({
     makeNativeMethod("initHybrid", CatalystInstanceImpl::initHybrid),
-    makeNativeMethod("createModuleRegistry", CatalystInstanceImpl::createModuleRegistry),
     makeNativeMethod("initializeBridge", CatalystInstanceImpl::initializeBridge),
     makeNativeMethod("jniExtendNativeModules", CatalystInstanceImpl::extendNativeModules),
     makeNativeMethod("jniSetSourceURL", CatalystInstanceImpl::jniSetSourceURL),
@@ -114,35 +112,24 @@ void CatalystInstanceImpl::registerNatives() {
     makeNativeMethod("jniCallJSCallback", CatalystInstanceImpl::jniCallJSCallback),
     makeNativeMethod("setGlobalVariable", CatalystInstanceImpl::setGlobalVariable),
     makeNativeMethod("getJavaScriptContext", CatalystInstanceImpl::getJavaScriptContext),
+    makeNativeMethod("getJSCallInvokerHolder", CatalystInstanceImpl::getJSCallInvokerHolder),
     makeNativeMethod("jniHandleMemoryPressure", CatalystInstanceImpl::handleMemoryPressure),
-    makeNativeMethod("getPointerOfInstancePointer", CatalystInstanceImpl::getPointerOfInstancePointer),
   });
 
   JNativeRunnable::registerNatives();
-}
-
-void CatalystInstanceImpl::createModuleRegistry(
-   jni::alias_ref<JavaMessageQueueThread::javaobject> nativeModulesQueue,
-   jni::alias_ref<jni::JCollection<JavaModuleWrapper::javaobject>::javaobject> javaModules,
-   jni::alias_ref<jni::JCollection<ModuleHolder::javaobject>::javaobject> cxxModules) {
-  moduleMessageQueue_ = std::make_shared<JMessageQueueThread>(nativeModulesQueue);
-
-  moduleRegistry_ = std::make_shared<ModuleRegistry>(
-    buildNativeModuleList(
-       std::weak_ptr<Instance>(instance_),
-       javaModules,
-       cxxModules,
-       moduleMessageQueue_
-       ));
-
-  instance_->setModuleRegistry(moduleRegistry_);
 }
 
 void CatalystInstanceImpl::initializeBridge(
     jni::alias_ref<ReactCallback::javaobject> callback,
     // This executor is actually a factory holder.
     JavaScriptExecutorHolder* jseh,
-    jni::alias_ref<JavaMessageQueueThread::javaobject> jsQueue) {
+    jni::alias_ref<JavaMessageQueueThread::javaobject> jsQueue,
+    jni::alias_ref<JavaMessageQueueThread::javaobject> nativeModulesQueue,
+    jni::alias_ref<jni::JCollection<JavaModuleWrapper::javaobject>::javaobject> javaModules,
+    jni::alias_ref<jni::JCollection<ModuleHolder::javaobject>::javaobject> cxxModules) {
+  // TODO mhorowitz: how to assert here?
+  // Assertions.assertCondition(mBridge == null, "initializeBridge should be called once");
+  moduleMessageQueue_ = std::make_shared<JMessageQueueThread>(nativeModulesQueue);
 
   // This used to be:
   //
@@ -160,9 +147,17 @@ void CatalystInstanceImpl::initializeBridge(
   // don't need jsModuleDescriptions any more, all the way up and down the
   // stack.
 
+  moduleRegistry_ = std::make_shared<ModuleRegistry>(
+    buildNativeModuleList(
+       std::weak_ptr<Instance>(instance_),
+       javaModules,
+       cxxModules,
+       moduleMessageQueue_));
+
   instance_->initializeBridge(
-    folly::make_unique<JInstanceCallback>(callback, moduleMessageQueue_),
-    nullptr, // Use default executor delegate.
+    std::make_unique<JInstanceCallback>(
+    callback,
+    moduleMessageQueue_),
     jseh->getExecutorFactory(),
     folly::make_unique<JMessageQueueThread>(jsQueue),
     moduleRegistry_);
@@ -205,7 +200,7 @@ void CatalystInstanceImpl::jniLoadScriptFromAssets(
       loadSynchronously);
     return;
   } else {
-    instance_->loadScriptFromString(std::move(script), 0 /*bundleVersion*/, sourceURL, loadSynchronously, "" /*bytecodeFileName*/);
+    instance_->loadScriptFromString(std::move(script), sourceURL, loadSynchronously);
   }
 }
 
@@ -220,7 +215,7 @@ void CatalystInstanceImpl::jniLoadScriptFromFile(const std::string& fileName,
       [&fileName, &script]() {
         script = JSBigFileString::fromPath(fileName);
       });
-    instance_->loadScriptFromString(std::move(script), 0 /*bundleVersion*/, sourceURL, loadSynchronously, "" /*bytecodeFileName*/);
+    instance_->loadScriptFromString(std::move(script), sourceURL, loadSynchronously);
   }
 }
 
@@ -271,8 +266,13 @@ void CatalystInstanceImpl::handleMemoryPressure(int pressureLevel) {
   instance_->handleMemoryPressure(pressureLevel);
 }
 
-jlong CatalystInstanceImpl::getPointerOfInstancePointer() {
-  return (jlong) (intptr_t) (&instance_);
+jni::alias_ref<JSCallInvokerHolder::javaobject> CatalystInstanceImpl::getJSCallInvokerHolder() {
+  if (!javaInstanceHolder_) {
+    jsCallInvoker_ = std::make_shared<JSCallInvoker>(instance_);
+    javaInstanceHolder_ = jni::make_global(JSCallInvokerHolder::newObjectCxxArgs(jsCallInvoker_));
+  }
+
+  return javaInstanceHolder_;
 }
 
 }}

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -51,6 +51,25 @@ RCT_EXTERN NSString *const RCTJavaScriptDidFailToLoadNotification;
 RCT_EXTERN NSString *const RCTDidInitializeModuleNotification;
 
 /**
+ * This notification fires each time a native module is setup after it is initialized. The
+ * `RCTDidSetupModuleNotificationModuleNameKey` key will contain a reference to the module name and
+ * `RCTDidSetupModuleNotificationSetupTimeKey` will contain the setup time in ms.
+ */
+RCT_EXTERN NSString *const RCTDidSetupModuleNotification;
+
+/**
+ * Key for the module name (NSString) in the
+ * RCTDidSetupModuleNotification userInfo dictionary.
+ */
+RCT_EXTERN NSString *const RCTDidSetupModuleNotificationModuleNameKey;
+
+/**
+ * Key for the setup time (NSNumber) in the
+ * RCTDidSetupModuleNotification userInfo dictionary.
+ */
+RCT_EXTERN NSString *const RCTDidSetupModuleNotificationSetupTimeKey;
+
+/**
  * This notification fires just before the bridge starts processing a request to
  * reload.
  */
@@ -94,6 +113,13 @@ typedef NSArray<id<RCTBridgeModule>> *(^RCTBridgeModuleListProvider)(void);
  * This function returns the module name for a given class.
  */
 RCT_EXTERN NSString *RCTBridgeModuleNameForClass(Class bridgeModuleClass);
+
+/**
+ * Experimental.
+ * Check/set if JSI-bound NativeModule is enabled. By default it's off.
+ */
+RCT_EXTERN BOOL RCTTurboModuleEnabled(void);
+RCT_EXTERN void RCTEnableTurboModule(BOOL enabled);
 
 /**
  * Async batched bridge used to communicate with the JavaScript application.
@@ -146,9 +172,19 @@ RCT_EXTERN NSString *RCTBridgeModuleNameForClass(Class bridgeModuleClass);
  * lazily instantiated, so calling these methods for the first time with a given
  * module name/class may cause the class to be sychronously instantiated,
  * potentially blocking both the calling thread and main thread for a short time.
+ *
+ * Note: This method does NOT lazily load the particular module if it's not yet loaded.
  */
 - (id)moduleForName:(NSString *)moduleName;
+- (id)moduleForName:(NSString *)moduleName lazilyLoadIfNecessary:(BOOL)lazilyLoad;
+// Note: This method lazily load the module as necessary.
 - (id)moduleForClass:(Class)moduleClass;
+
+/**
+ * When a NativeModule performs a lookup for a TurboModule, we need to query
+ * the lookupDelegate.
+ */
+- (void)setRCTTurboModuleLookupDelegate:(id<RCTTurboModuleLookupDelegate>)turboModuleLookupDelegate;
 
 /**
  * Convenience method for retrieving all modules conforming to a given protocol.
@@ -163,11 +199,6 @@ RCT_EXTERN NSString *RCTBridgeModuleNameForClass(Class bridgeModuleClass);
  * to be instantiated if it hasn't been already.
  */
 - (BOOL)moduleIsInitialized:(Class)moduleClass;
-
-/**
- * Retrieve an extra module that gets bound to the JS context, if any.
- */
-- (id)jsBoundExtraModuleForClass:(Class)moduleClass;
 
 /**
  * All registered bridge module classes.

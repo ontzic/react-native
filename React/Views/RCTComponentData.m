@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,6 +11,7 @@
 
 #import "RCTBridge.h"
 #import "RCTBridgeModule.h"
+#import "RCTComponentEvent.h"
 #import "RCTConvert.h"
 #import "RCTParserUtils.h"
 #import "RCTShadowView.h"
@@ -116,12 +117,10 @@ static RCTPropBlock createEventSetter(NSString *propName, SEL setter, RCTBridge 
           return;
         }
 
-        NSMutableDictionary *mutableEvent = [NSMutableDictionary dictionaryWithDictionary:event];
-        mutableEvent[@"target"] = strongTarget.reactTag;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        [weakBridge.eventDispatcher sendInputEventWithName:RCTNormalizeInputEventName(propName) body:mutableEvent];
-#pragma clang diagnostic pop
+        RCTComponentEvent *componentEvent = [[RCTComponentEvent alloc] initWithName:propName
+                                                                            viewTag:strongTarget.reactTag
+                                                                               body:event];
+        [weakBridge.eventDispatcher sendEvent:componentEvent];
       };
     }
     ((void (*)(id, SEL, id))objc_msgSend)(target, setter, eventHandler);

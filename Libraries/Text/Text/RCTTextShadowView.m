@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -33,6 +33,20 @@
   }
 
   return self;
+}
+
+- (void)didSetProps:(NSArray<NSString *> *)changedProps
+{
+  [super didSetProps:changedProps];
+
+  // When applying a semi-transparent background color to Text component
+  // we must set the root text nodes text attribute background color to nil
+  // because the background color is drawn on the RCTTextView itself, as well
+  // as on the glphy background draw step. By setting this to nil, we allow
+  // the RCTTextView backgroundColor to be used, without affecting nested Text
+  // components.
+  self.textAttributes.backgroundColor = nil;
+  self.textAttributes.opacity = NAN;
 }
 
 - (BOOL)isYogaLeafNode
@@ -133,7 +147,7 @@
     return;
   }
 
-  [attributedText beginEditing];
+  __block CGFloat maximumFontLineHeight = 0;
 
   [attributedText enumerateAttribute:NSFontAttributeName
                              inRange:NSMakeRange(0, attributedText.length)
@@ -144,19 +158,21 @@
         return;
       }
 
-      if (maximumLineHeight <= UIFontLineHeight(font)) { // TODO(macOS ISS#2323203)
-        return;
+      if (maximumFontLineHeight <= font.lineHeight) {
+        maximumFontLineHeight = font.lineHeight;
       }
+    }
+  ];
 
-      CGFloat baseLineOffset = maximumLineHeight / 2.0 - UIFontLineHeight(font) / 2.0; // TODO(macOS ISS#2323203)
+  if (maximumLineHeight < maximumFontLineHeight) {
+    return;
+  }
 
-      [attributedText addAttribute:NSBaselineOffsetAttributeName
-                             value:@(baseLineOffset)
-                             range:range];
-     }
-   ];
+  CGFloat baseLineOffset = maximumLineHeight / 2.0 - maximumFontLineHeight / 2.0;
 
-   [attributedText endEditing];
+  [attributedText addAttribute:NSBaselineOffsetAttributeName
+                         value:@(baseLineOffset)
+                         range:NSMakeRange(0, attributedText.length)];
 }
 
 - (NSAttributedString *)attributedTextWithMeasuredAttachmentsThatFitSize:(CGSize)size
@@ -191,7 +207,7 @@
 - (NSTextStorage *)textStorageAndLayoutManagerThatFitsSize:(CGSize)size
                                         exclusiveOwnership:(BOOL)exclusiveOwnership
 {
-  NSValue *key = NSValueWithCGSize(size); // TODO(macOS ISS#2323203)
+  NSValue *key = [NSValue valueWithCGSize:size];
   NSTextStorage *cachedTextStorage = [_cachedTextStorages objectForKey:key];
 
   if (cachedTextStorage) {
@@ -282,22 +298,15 @@
       UIFont *font = [textStorage attribute:NSFontAttributeName atIndex:range.location effectiveRange:nil];
 
       CGRect frame = {{
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
         RCTRoundPixelValue(glyphRect.origin.x),
         RCTRoundPixelValue(glyphRect.origin.y + glyphRect.size.height - attachmentSize.height + font.descender)
-#else // [TODO(macOS ISS#2323203)
-        RCTRoundPixelValue(glyphRect.origin.x, [self scale]),
-        RCTRoundPixelValue(glyphRect.origin.y + glyphRect.size.height - attachmentSize.height + font.descender, [self scale])
-#endif // ]TODO(macOS ISS#2323203)
       }, {
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
         RCTRoundPixelValue(attachmentSize.width),
         RCTRoundPixelValue(attachmentSize.height)
-#else // [TODO(macOS ISS#2323203)
-        RCTRoundPixelValue(attachmentSize.width, [self scale]),
-        RCTRoundPixelValue(attachmentSize.height, [self scale])
-#endif // ]TODO(macOS ISS#2323203)
       }};
+      
+      NSRange truncatedGlyphRange = [layoutManager truncatedGlyphRangeInLineFragmentForGlyphAtIndex:range.location];
+      BOOL viewIsTruncated = NSIntersectionRange(range, truncatedGlyphRange).length != 0;
 
       RCTLayoutContext localLayoutContext = layoutContext;
       localLayoutContext.absolutePosition.x += frame.origin.x;
@@ -308,12 +317,43 @@
                         layoutDirection:self.layoutMetrics.layoutDirection
                           layoutContext:localLayoutContext];
 
-      // Reinforcing a proper frame origin for the Shadow View.
       RCTLayoutMetrics localLayoutMetrics = shadowView.layoutMetrics;
-      localLayoutMetrics.frame.origin = frame.origin;
+      localLayoutMetrics.frame.origin = frame.origin; // Reinforcing a proper frame origin for the Shadow View.
+      if (viewIsTruncated) {
+        localLayoutMetrics.displayType = RCTDisplayTypeNone;
+      }
       [shadowView layoutWithMetrics:localLayoutMetrics layoutContext:localLayoutContext];
     }
   ];
+
+
+  if (_onTextLayout) {
+    NSMutableArray *lineData = [NSMutableArray new];
+    [layoutManager
+     enumerateLineFragmentsForGlyphRange:glyphRange
+     usingBlock:^(CGRect overallRect, CGRect usedRect, NSTextContainer * _Nonnull usedTextContainer, NSRange lineGlyphRange, BOOL * _Nonnull stop) {
+       NSRange range = [layoutManager characterRangeForGlyphRange:lineGlyphRange actualGlyphRange:nil];
+       NSString *renderedString = [textStorage.string substringWithRange:range];
+       UIFont *font = [[textStorage attributedSubstringFromRange:range] attribute:NSFontAttributeName atIndex:0 effectiveRange:nil];
+       [lineData addObject:
+        @{
+          @"text": renderedString,
+          @"x": @(usedRect.origin.x),
+          @"y": @(usedRect.origin.y),
+          @"width": @(usedRect.size.width),
+          @"height": @(usedRect.size.height),
+          @"descender": @(-font.descender),
+          @"capHeight": @(font.capHeight),
+          @"ascender": @(font.ascender),
+          @"xHeight": @(font.xHeight),
+          }];
+     }];
+    NSDictionary *payload =
+    @{
+      @"lines": lineData,
+      };
+    _onTextLayout(payload);
+  }
 }
 
 - (CGFloat)lastBaselineForSize:(CGSize)size
@@ -361,13 +401,8 @@ static YGSize RCTTextShadowViewMeasure(YGNodeRef node, float width, YGMeasureMod
   }
 
   size = (CGSize){
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
     MIN(RCTCeilPixelValue(size.width), maximumSize.width),
     MIN(RCTCeilPixelValue(size.height), maximumSize.height)
-#else // [TODO(macOS ISS#2323203)
-    MIN(RCTCeilPixelValue(size.width, shadowTextView.scale), maximumSize.width),
-    MIN(RCTCeilPixelValue(size.height, shadowTextView.scale), maximumSize.height)
-#endif // ]TODO(macOS ISS#2323203)
   };
 
   // Adding epsilon value illuminates problems with converting values from

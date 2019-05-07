@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,9 +8,14 @@
 package com.facebook.react.views.modal;
 
 import android.content.DialogInterface;
+import android.graphics.Point;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.LayoutShadowNode;
+import com.facebook.react.uimanager.PixelUtil;
+import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.UIManagerModule;
 import com.facebook.react.uimanager.ViewGroupManager;
@@ -24,7 +29,7 @@ import java.util.Map;
 @ReactModule(name = ReactModalHostManager.REACT_CLASS)
 public class ReactModalHostManager extends ViewGroupManager<ReactModalHostView> {
 
-  protected static final String REACT_CLASS = "RCTModalHostView";
+  public static final String REACT_CLASS = "RCTModalHostView";
 
   @Override
   public String getName() {
@@ -101,5 +106,14 @@ public class ReactModalHostManager extends ViewGroupManager<ReactModalHostView> 
   protected void onAfterUpdateTransaction(ReactModalHostView view) {
     super.onAfterUpdateTransaction(view);
     view.showOrUpdate();
+  }
+
+  @Override
+  public void updateState(ReactModalHostView view, StateWrapper stateWrapper) {
+    Point modalSize = ModalHostHelper.getModalHostSize(view.getContext());
+    WritableMap map = new WritableNativeMap();
+    map.putDouble("screenWidth", PixelUtil.toDIPFromPixel(modalSize.x));
+    map.putDouble("screenHeight", PixelUtil.toDIPFromPixel(modalSize.y));
+    stateWrapper.updateState(map);
   }
 }

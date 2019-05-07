@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -75,6 +75,31 @@ public class DisabledDevSupportManager implements DevSupportManager {
 
   @Override
   public void stopInspector() {
+
+  }
+
+  @Override
+  public void setHotModuleReplacementEnabled(boolean isHotModuleReplacementEnabled) {
+
+  }
+
+  @Override
+  public void setRemoteJSDebugEnabled(boolean isRemoteJSDebugEnabled) {
+
+  }
+
+  @Override
+  public void setReloadOnJSChangeEnabled(boolean isReloadOnJSChangeEnabled) {
+
+  }
+
+  @Override
+  public void setFpsDebugEnabled(boolean isFpsDebugEnabled) {
+
+  }
+
+  @Override
+  public void toggleElementInspector() {
 
   }
 
@@ -162,7 +187,7 @@ public class DisabledDevSupportManager implements DevSupportManager {
 
   @Override
   public void registerErrorCustomizer(ErrorCustomizer errorCustomizer) {
-    
+
   }
 
   @Override

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -96,7 +96,8 @@ RCT_EXPORT_METHOD(showMessage:(NSString *)message color:(UIColor *)color backgro
       // set a root VC so rotation is supported
       self->_window.rootViewController = [UIViewController new];
 
-      self->_label.font = [UIFont systemFontOfSize:12.0];
+      self->_label.font = [UIFont monospacedDigitSystemFontOfSize:12.0
+                                                           weight:UIFontWeightRegular];
       self->_label.textAlignment = NSTextAlignmentCenter;
 #elif TARGET_OS_OSX // [TODO(macOS ISS#2323203)
       NSRect screenFrame = [NSScreen mainScreen].visibleFrame;

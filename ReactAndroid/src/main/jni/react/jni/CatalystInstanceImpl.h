@@ -1,4 +1,4 @@
-// Copyright (c) 2004-present, Facebook, Inc.
+// Copyright (c) Facebook, Inc. and its affiliates.
 
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
@@ -7,6 +7,7 @@
 
 #include <fb/fbjni.h>
 #include <folly/Memory.h>
+#include <jsireact/JSCallInvokerHolder.h>
 
 #include "CxxModuleWrapper.h"
 #include "JavaModuleWrapper.h"
@@ -77,6 +78,7 @@ class CatalystInstanceImpl : public jni::HybridClass<CatalystInstanceImpl> {
   void jniLoadScriptFromDeltaBundle(const std::string& sourceURL, jni::alias_ref<NativeDeltaClient::jhybridobject> deltaClient, bool loadSynchronously);
   void jniCallJSFunction(std::string module, std::string method, NativeArray* arguments);
   void jniCallJSCallback(jint callbackId, NativeArray* arguments);
+  jni::alias_ref<JSCallInvokerHolder::javaobject> getJSCallInvokerHolder();
   void setGlobalVariable(std::string propName,
                          std::string&& jsonValue);
   jlong getJavaScriptContext();
@@ -88,6 +90,8 @@ class CatalystInstanceImpl : public jni::HybridClass<CatalystInstanceImpl> {
   std::shared_ptr<Instance> instance_;
   std::shared_ptr<ModuleRegistry> moduleRegistry_;
   std::shared_ptr<JMessageQueueThread> moduleMessageQueue_;
+  jni::global_ref<JSCallInvokerHolder::javaobject> javaInstanceHolder_;
+  std::shared_ptr<JSCallInvoker> jsCallInvoker_;
 };
 
 }}

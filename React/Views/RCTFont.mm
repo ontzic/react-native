@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -52,7 +52,7 @@ static RCTFontWeight weightOfFont(UIFont *font)
     ];
   });
 
-  for (NSInteger i = 0; i < fontNames.count; i++) {
+  for (NSInteger i = 0; i < 0 || i < (unsigned)fontNames.count; i++) {
     if ([font.fontName.lowercaseString hasSuffix:fontNames[i]]) {
       return (RCTFontWeight)[fontWeights[i] doubleValue];
     }
@@ -126,12 +126,12 @@ static NSString *FontWeightDescriptionFromUIFontWeight(UIFontWeight fontWeight)
 static UIFont *cachedSystemFont(CGFloat size, RCTFontWeight weight)
 {
   static NSCache *fontCache;
-  static std::mutex fontCacheMutex;
+  static std::mutex *fontCacheMutex = new std::mutex;
 
   NSString *cacheKey = [NSString stringWithFormat:@"%.1f/%.2f", size, weight];
   UIFont *font;
   {
-    std::lock_guard<std::mutex> lock(fontCacheMutex);
+    std::lock_guard<std::mutex> lock(*fontCacheMutex);
     if (!fontCache) {
       fontCache = [NSCache new];
     }
@@ -142,45 +142,18 @@ static UIFont *cachedSystemFont(CGFloat size, RCTFontWeight weight)
     if (defaultFontHandler) {
       NSString *fontWeightDescription = FontWeightDescriptionFromUIFontWeight(weight);
       font = defaultFontHandler(size, fontWeightDescription);
-#pragma clang diagnostic push // TODO(OSS Candidate ISS#2710739)
-#pragma clang diagnostic ignored "-Wunguarded-availability" // TODO(OSS Candidate ISS#2710739)
-    } else if ([UIFont respondsToSelector:@selector(systemFontOfSize:weight:)]) {
-      // Only supported on iOS8.2/macOS10.11 and above
-      font = [UIFont systemFontOfSize:size weight:weight];
-#pragma clang diagnostic pop // TODO(OSS Candidate ISS#2710739)
     } else {
-      if (weight >= UIFontWeightBold) {
-        font = [UIFont boldSystemFontOfSize:size];
-      } else if (weight >= UIFontWeightMedium) {
-        font = [UIFont fontWithName:@"HelveticaNeue-Medium" size:size];
-      } else if (weight <= UIFontWeightLight) {
-        font = [UIFont fontWithName:@"HelveticaNeue-Light" size:size];
-      } else {
-        font = [UIFont systemFontOfSize:size];
-      }
+      font = [UIFont systemFontOfSize:size weight:weight];
     }
 
     {
-      std::lock_guard<std::mutex> lock(fontCacheMutex);
+      std::lock_guard<std::mutex> lock(*fontCacheMutex);
       [fontCache setObject:font forKey:cacheKey];
     }
   }
 
   return font;
 }
-
-static NSArray<NSString *> *fontNamesForFamilyName(NSString *familyName) // [TODO(macOS ISS#2323203)
-{
-#if !TARGET_OS_OSX
-  return [UIFont fontNamesForFamilyName:familyName];
-#else
-  NSMutableArray<NSString *> *fontNames = [NSMutableArray array];
-  for (NSArray *fontSettings in [[NSFontManager sharedFontManager] availableMembersOfFontFamily:familyName]) {
-    [fontNames addObject:fontSettings[0]];
-  }
-  return fontNames;
-#endif
-} // ]TODO(macOS ISS#2323203)
 
 @implementation RCTConvert (RCTFont)
 
@@ -327,7 +300,7 @@ RCT_ARRAY_CONVERTER(RCTFontVariantDescriptor)
 
   // Gracefully handle being given a font name rather than font family, for
   // example: "Helvetica Light Oblique" rather than just "Helvetica".
-  if (!didFindFont && fontNamesForFamilyName(familyName).count == 0) { // TODO(macOS ISS#2323203)
+  if (!didFindFont && [UIFont fontNamesForFamilyName:familyName].count == 0) {
     font = [UIFont fontWithName:familyName size:fontSize];
     if (font) {
       // It's actually a font name, not a font family name,
@@ -339,11 +312,8 @@ RCT_ARRAY_CONVERTER(RCTFontVariantDescriptor)
     } else {
       // Not a valid font or family
       RCTLogError(@"Unrecognized font family '%@'", familyName);
-#pragma clang diagnostic push // TODO(OSS Candidate ISS#2710739)
-#pragma clang diagnostic ignored "-Wunguarded-availability" // TODO(OSS Candidate ISS#2710739)
       if ([UIFont respondsToSelector:@selector(systemFontOfSize:weight:)]) {
         font = [UIFont systemFontOfSize:fontSize weight:fontWeight];
-#pragma clang diagnostic pop // TODO(OSS Candidate ISS#2710739)
       } else if (fontWeight > UIFontWeightRegular) {
         font = [UIFont boldSystemFontOfSize:fontSize];
       } else {
@@ -354,7 +324,7 @@ RCT_ARRAY_CONVERTER(RCTFontVariantDescriptor)
 
   // Get the closest font that matches the given weight for the fontFamily
   CGFloat closestWeight = INFINITY;
-  for (NSString *name in fontNamesForFamilyName(familyName)) { // TODO(macOS ISS#2323203)
+  for (NSString *name in [UIFont fontNamesForFamilyName:familyName]) {
     UIFont *match = [UIFont fontWithName:name size:fontSize];
     if (isItalic == isItalicFont(match) &&
         isCondensed == isCondensedFont(match)) {
@@ -369,7 +339,7 @@ RCT_ARRAY_CONVERTER(RCTFontVariantDescriptor)
   // If we still don't have a match at least return the first font in the fontFamily
   // This is to support built-in font Zapfino and other custom single font families like Impact
   if (!font) {
-    NSArray *names = fontNamesForFamilyName(familyName); // TODO(macOS ISS#2323203)
+    NSArray *names = [UIFont fontNamesForFamilyName:familyName];
     if (names.count > 0) {
       font = [UIFont fontWithName:names[0] size:fontSize];
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -86,6 +86,10 @@ public class DevInternalSettings implements
   @Override
   public boolean isJSDevModeEnabled() {
     return mPreferences.getBoolean(PREFS_JS_DEV_MODE_DEBUG_KEY, true);
+  }
+
+  public void setJSDevModeEnabled(boolean value) {
+    mPreferences.edit().putBoolean(PREFS_JS_DEV_MODE_DEBUG_KEY, value).apply();
   }
 
   @Override

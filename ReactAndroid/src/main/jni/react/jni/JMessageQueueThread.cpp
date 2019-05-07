@@ -1,4 +1,4 @@
-// Copyright (c) 2004-present, Facebook, Inc.
+// Copyright (c) Facebook, Inc. and its affiliates.
 
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
@@ -8,11 +8,9 @@
 #include <condition_variable>
 #include <mutex>
 
+#include <fb/fbjni.h>
 #include <fb/log.h>
 #include <folly/Memory.h>
-#include <fb/fbjni.h>
-
-#include <jschelpers/JSException.h>
 #include <jsi/jsi.h>
 
 #include "JNativeRunnable.h"
@@ -33,13 +31,9 @@ struct JavaJSException : jni::JavaClass<JavaJSException, JThrowable> {
 };
 
 std::function<void()> wrapRunnable(std::function<void()>&& runnable) {
-  // JSException catch block is needed as JSException is thrown by Executors.
-  // We can get rid of it, once we will completely swith to JSI based runtime.
   return [runnable=std::move(runnable)] {
     try {
       runnable();
-    } catch (const JSException& ex) {
-      throwNewJavaException(JavaJSException::create(ex.what(), ex.getStack().c_str(), ex).get());
     } catch (const jsi::JSError& ex) {
       throwNewJavaException(
           JavaJSException::create(ex.getMessage().c_str(), ex.getStack().c_str(), ex)
@@ -47,6 +41,7 @@ std::function<void()> wrapRunnable(std::function<void()>&& runnable) {
     }
   };
 }
+
 }
 
 JMessageQueueThread::JMessageQueueThread(alias_ref<JavaMessageQueueThread::javaobject> jobj) :

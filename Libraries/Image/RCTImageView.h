@@ -1,29 +1,18 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
-#import <React/RCTUIKit.h> // TODO(macOS ISS#2323203)
-
+#import <UIKit/UIKit.h>
+#import <React/RCTView.h>
 #import <React/RCTResizeMode.h>
 
 @class RCTBridge;
 @class RCTImageSource;
 
-#if TARGET_OS_OSX // [TODO(macOS ISS#2323203)
-typedef NS_ENUM(NSInteger, UIImageRenderingMode) {
-    UIImageRenderingModeAlwaysOriginal,
-    UIImageRenderingModeAlwaysTemplate,
-};
-#endif
-
-#if !TARGET_OS_OSX // ]TODO(macOS ISS#2323203)
-@interface RCTImageView : UIImageView
-#else // [TODO(macOS ISS#2323203)
-@interface RCTImageView : NSImageView
-#endif // ]TODO(macOS ISS#2323203)
+@interface RCTImageView : RCTView
 
 - (instancetype)initWithBridge:(RCTBridge *)bridge NS_DESIGNATED_INITIALIZER;
 

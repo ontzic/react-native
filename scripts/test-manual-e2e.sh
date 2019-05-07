@@ -1,4 +1,8 @@
-#! /bin/bash
+#!/bin/bash
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 
 JAVA_VERSION="1.7"
 
@@ -8,16 +12,16 @@ BLUE="\033[0;35m"
 ENDCOLOR="\033[0m"
 
 error() {
-    echo -e $RED"$@"$ENDCOLOR
+    echo -e "$RED""$*""$ENDCOLOR"
     exit 1
 }
 
 success() {
-    echo -e $GREEN"$@"$ENDCOLOR
+    echo -e "$GREEN""$*""$ENDCOLOR"
 }
 
 info() {
-    echo -e $BLUE"$@"$ENDCOLOR
+    echo -e "$BLUE""$*""$ENDCOLOR"
 }
 
 PACKAGE_VERSION=$(cat package.json \
@@ -72,11 +76,14 @@ npm pack
 PACKAGE=$(pwd)/react-native-$PACKAGE_VERSION.tgz
 success "Package bundled ($PACKAGE)"
 
+node scripts/set-rn-template-version.js "file:$PACKAGE"
+success "React Native version changed in the template"
+
 project_name="RNTestProject"
 
 cd /tmp/
 rm -rf "$project_name"
-react-native init "$project_name" --version $PACKAGE
+node "$repo_root/cli.js" init "$project_name" --template "$repo_root"
 
 info "Double checking the versions in package.json are correct:"
 grep "\"react-native\": \".*react-native-$PACKAGE_VERSION.tgz\"" "/tmp/${project_name}/package.json" || error "Incorrect version number in /tmp/${project_name}/package.json"

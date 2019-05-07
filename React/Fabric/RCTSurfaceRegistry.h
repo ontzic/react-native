@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,6 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class RCTFabricSurface;
 
+typedef void(^RCTSurfaceEnumeratorBlock)(NSEnumerator<RCTFabricSurface *> *enumerator);
+
 /**
  * Registry of Surfaces.
  * Incapsulates storing Surface objects and quering them by root tag.
@@ -20,6 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
  * The registry stores Surface objects as weak refereces.
  */
 @interface RCTSurfaceRegistry : NSObject
+
+- (void)enumerateWithBlock:(RCTSurfaceEnumeratorBlock)block;
 
 /**
  * Adds Surface object into the registry.

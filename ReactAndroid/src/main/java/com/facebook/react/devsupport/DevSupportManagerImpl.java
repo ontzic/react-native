@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,7 +7,6 @@
 
 package com.facebook.react.devsupport;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
@@ -21,6 +20,7 @@ import android.content.pm.PackageManager;
 import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.AsyncTask;
+import androidx.annotation.Nullable;
 import android.util.Pair;
 import android.widget.Toast;
 import com.facebook.common.logging.FLog;
@@ -31,7 +31,6 @@ import com.facebook.react.R;
 import com.facebook.react.bridge.CatalystInstance;
 import com.facebook.react.bridge.DefaultNativeModuleCallExceptionHandler;
 import com.facebook.react.bridge.JavaJSExecutor;
-import com.facebook.react.bridge.JavaScriptContextHolder;
 import com.facebook.react.bridge.NativeDeltaClient;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactMarker;
@@ -64,7 +63,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.annotation.Nullable;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -96,7 +94,6 @@ import okhttp3.RequestBody;
  * {@code <activity android:name="com.facebook.react.devsupport.DevSettingsActivity"/>}
  * {@code <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>}
  */
-@TargetApi(11)
 public class DevSupportManagerImpl implements
     DevSupportManager,
     PackagerCommandListener,
@@ -295,7 +292,7 @@ public class DevSupportManagerImpl implements
 
     @Override
     public void log(Exception e) {
-      StringBuilder message = new StringBuilder(e.getMessage());
+      StringBuilder message = new StringBuilder(e.getMessage() == null ? "Exception in native call from JS" : e.getMessage());
       Throwable cause = e.getCause();
       while (cause != null) {
         message.append("\n\n").append(cause.getMessage());
@@ -320,7 +317,7 @@ public class DevSupportManagerImpl implements
   }
 
   @Override
-  public void showNewJavaError(String message, Throwable e) {
+  public void showNewJavaError(@Nullable String message, Throwable e) {
     FLog.e(ReactConstants.TAG, "Exception in native call", e);
     showNewError(message, StackTraceHelper.convertJavaStackTrace(e), JAVA_ERROR_COOKIE, ErrorType.NATIVE);
   }
@@ -414,7 +411,7 @@ public class DevSupportManagerImpl implements
   }
 
   private void showNewError(
-      final String message,
+      @Nullable final String message,
       final StackFrame[] stack,
       final int errorCookie,
       final ErrorType errorType) {
@@ -462,6 +459,10 @@ public class DevSupportManagerImpl implements
         new DevOptionHandler() {
           @Override
           public void onOptionSelected() {
+            if (!mDevSettings.isJSDevModeEnabled() && mDevSettings.isHotModuleReplacementEnabled()) {
+              Toast.makeText(mApplicationContext, "HMR cannot be enabled when Dev mode is off. Disabling HMR...", Toast.LENGTH_LONG).show();
+              mDevSettings.setHotModuleReplacementEnabled(false);
+            }
             handleReloadJS();
           }
         });
@@ -512,6 +513,10 @@ public class DevSupportManagerImpl implements
             new DevOptionHandler() {
               @Override
               public void onOptionSelected() {
+                if (!mDevSettings.isHotModuleReplacementEnabled() && !mDevSettings.isJSDevModeEnabled()) {
+                  Toast.makeText(mApplicationContext, "You're trying to enable HMR while Dev mode is off. Turning both HMR and the Dev mode on...", Toast.LENGTH_LONG).show();
+                  mDevSettings.setJSDevModeEnabled(true);
+                }
                 mDevSettings.setHotModuleReplacementEnabled(!mDevSettings.isHotModuleReplacementEnabled());
                 handleReloadJS();
               }
@@ -893,7 +898,7 @@ public class DevSupportManagerImpl implements
   }
 
   private void updateLastErrorInfo(
-      final String message,
+      @Nullable final String message,
       final StackFrame[] stack,
       final int errorCookie,
       final ErrorType errorType) {
@@ -1033,6 +1038,90 @@ public class DevSupportManagerImpl implements
   @Override
   public void stopInspector() {
     mDevServerHelper.closeInspectorConnection();
+  }
+
+  @Override
+  public void setHotModuleReplacementEnabled(final boolean isHotModuleReplacementEnabled) {
+    if (!mIsDevSupportEnabled) {
+      return;
+    }
+
+    UiThreadUtil.runOnUiThread(
+      new Runnable() {
+        @Override
+        public void run() {
+          mDevSettings.setHotModuleReplacementEnabled(isHotModuleReplacementEnabled);
+          handleReloadJS();
+        }
+      }
+    );
+  }
+
+  @Override
+  public void setRemoteJSDebugEnabled(final boolean isRemoteJSDebugEnabled) {
+    if (!mIsDevSupportEnabled) {
+      return;
+    }
+
+    UiThreadUtil.runOnUiThread(
+      new Runnable() {
+        @Override
+        public void run() {
+          mDevSettings.setRemoteJSDebugEnabled(isRemoteJSDebugEnabled);
+          handleReloadJS();
+        }
+      }
+    );
+  }
+
+  @Override
+  public void setReloadOnJSChangeEnabled(final boolean isReloadOnJSChangeEnabled) {
+    if (!mIsDevSupportEnabled) {
+      return;
+    }
+
+    UiThreadUtil.runOnUiThread(
+      new Runnable() {
+        @Override
+        public void run() {
+          mDevSettings.setReloadOnJSChangeEnabled(isReloadOnJSChangeEnabled);
+          handleReloadJS();
+        }
+      }
+    );
+  }
+
+  @Override
+  public void setFpsDebugEnabled(final boolean isFpsDebugEnabled) {
+    if (!mIsDevSupportEnabled) {
+      return;
+    }
+
+    UiThreadUtil.runOnUiThread(
+      new Runnable() {
+        @Override
+        public void run() {
+          mDevSettings.setFpsDebugEnabled(isFpsDebugEnabled);
+        }
+      }
+    );
+  }
+
+  @Override
+  public void toggleElementInspector() {
+    if (!mIsDevSupportEnabled) {
+      return;
+    }
+
+    UiThreadUtil.runOnUiThread(
+      new Runnable() {
+        @Override
+        public void run() {
+          mDevSettings.setElementInspectorEnabled(!mDevSettings.isElementInspectorEnabled());
+          mReactInstanceManagerHelper.toggleElementInspector();
+        }
+      }
+    );
   }
 
   private void reload() {

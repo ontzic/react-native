@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * <p>This source code is licensed under the MIT license found in the LICENSE file in the root
+ * directory of this source tree.
  */
-
 package com.facebook.react.views.text;
 
+import android.annotation.TargetApi;
 import android.os.Build;
 import android.text.BoringLayout;
 import android.text.Layout;
@@ -17,16 +17,24 @@ import android.text.TextPaint;
 import android.view.Gravity;
 import android.widget.TextView;
 import com.facebook.infer.annotation.Assertions;
-import com.facebook.react.uimanager.LayoutShadowNode;
-import com.facebook.react.uimanager.ReactShadowNodeImpl;
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.uimanager.NativeViewHierarchyOptimizer;
+import com.facebook.react.uimanager.ReactShadowNode;
 import com.facebook.react.uimanager.Spacing;
 import com.facebook.react.uimanager.UIViewOperationQueue;
+import com.facebook.react.uimanager.annotations.ReactProp;
+import com.facebook.react.uimanager.events.RCTEventEmitter;
 import com.facebook.yoga.YogaConstants;
 import com.facebook.yoga.YogaDirection;
 import com.facebook.yoga.YogaMeasureFunction;
 import com.facebook.yoga.YogaMeasureMode;
 import com.facebook.yoga.YogaMeasureOutput;
 import com.facebook.yoga.YogaNode;
+
+import java.util.ArrayList;
+
 import javax.annotation.Nullable;
 
 /**
@@ -35,6 +43,7 @@ import javax.annotation.Nullable;
  * <p>The class measures text in {@code <Text>} view and feeds native {@link TextView} using {@code
  * Spannable} object constructed in superclass.
  */
+@TargetApi(Build.VERSION_CODES.M)
 public class ReactTextShadowNode extends ReactBaseTextShadowNode {
 
   // It's important to pass the ANTI_ALIAS_FLAG flag to the constructor rather than setting it
@@ -43,6 +52,8 @@ public class ReactTextShadowNode extends ReactBaseTextShadowNode {
   private static final TextPaint sTextPaintInstance = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
 
   private @Nullable Spannable mPreparedSpannableText;
+
+  private boolean mShouldNotifyOnTextLayout;
 
   private final YogaMeasureFunction mTextMeasureFunction =
       new YogaMeasureFunction() {
@@ -53,85 +64,106 @@ public class ReactTextShadowNode extends ReactBaseTextShadowNode {
             YogaMeasureMode widthMode,
             float height,
             YogaMeasureMode heightMode) {
+
           // TODO(5578671): Handle text direction (see View#getTextDirectionHeuristic)
           TextPaint textPaint = sTextPaintInstance;
+          textPaint.setTextSize(mTextAttributes.getEffectiveFontSize());
           Layout layout;
-          Spanned text = Assertions.assertNotNull(
-              mPreparedSpannableText,
-              "Spannable element has not been prepared in onBeforeLayout");
+          Spanned text =
+              Assertions.assertNotNull(
+                  mPreparedSpannableText,
+                  "Spannable element has not been prepared in onBeforeLayout");
           BoringLayout.Metrics boring = BoringLayout.isBoring(text, textPaint);
-          float desiredWidth = boring == null ?
-              Layout.getDesiredWidth(text, textPaint) : Float.NaN;
+          float desiredWidth = boring == null ? Layout.getDesiredWidth(text, textPaint) : Float.NaN;
 
           // technically, width should never be negative, but there is currently a bug in
           boolean unconstrainedWidth = widthMode == YogaMeasureMode.UNDEFINED || width < 0;
 
-          if (boring == null &&
-              (unconstrainedWidth ||
-                  (!YogaConstants.isUndefined(desiredWidth) && desiredWidth <= width))) {
+          Layout.Alignment alignment = Layout.Alignment.ALIGN_NORMAL;
+          switch (getTextAlign()) {
+            case Gravity.LEFT:
+              alignment = Layout.Alignment.ALIGN_NORMAL;
+              break;
+            case Gravity.RIGHT:
+              alignment = Layout.Alignment.ALIGN_OPPOSITE;
+              break;
+            case Gravity.CENTER_HORIZONTAL:
+              alignment = Layout.Alignment.ALIGN_CENTER;
+              break;
+          }
+
+          if (boring == null
+              && (unconstrainedWidth
+                  || (!YogaConstants.isUndefined(desiredWidth) && desiredWidth <= width))) {
             // Is used when the width is not known and the text is not boring, ie. if it contains
             // unicode characters.
 
             int hintWidth = (int) Math.ceil(desiredWidth);
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-              layout = new StaticLayout(
-                text,
-                textPaint,
-                hintWidth,
-                Layout.Alignment.ALIGN_NORMAL,
-                1.f,
-                0.f,
-                mIncludeFontPadding);
+              layout =
+                  new StaticLayout(
+                      text, textPaint, hintWidth, alignment, 1.f, 0.f, mIncludeFontPadding);
             } else {
-              layout = StaticLayout.Builder.obtain(text, 0, text.length(), textPaint, hintWidth)
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-                .setLineSpacing(0.f, 1.f)
-                .setIncludePad(mIncludeFontPadding)
-                .setBreakStrategy(mTextBreakStrategy)
-                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NORMAL)
-                .build();
+              StaticLayout.Builder builder =
+                  StaticLayout.Builder.obtain(text, 0, text.length(), textPaint, hintWidth)
+                    .setAlignment(alignment)
+                    .setLineSpacing(0.f, 1.f)
+                    .setIncludePad(mIncludeFontPadding)
+                    .setBreakStrategy(mTextBreakStrategy)
+                    .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NORMAL);
+
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder.setJustificationMode(mJustificationMode);
+              }
+              layout = builder.build();
             }
 
           } else if (boring != null && (unconstrainedWidth || boring.width <= width)) {
             // Is used for single-line, boring text when the width is either unknown or bigger
             // than the width of the text.
-            layout = BoringLayout.make(
-                text,
-                textPaint,
-                boring.width,
-                Layout.Alignment.ALIGN_NORMAL,
-                1.f,
-                0.f,
-                boring,
-                mIncludeFontPadding);
+            layout =
+                BoringLayout.make(
+                    text,
+                    textPaint,
+                    boring.width,
+                    alignment,
+                    1.f,
+                    0.f,
+                    boring,
+                    mIncludeFontPadding);
           } else {
             // Is used for multiline, boring text and the width is known.
 
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-              layout = new StaticLayout(
-                  text,
-                  textPaint,
-                  (int) width,
-                  Layout.Alignment.ALIGN_NORMAL,
-                  1.f,
-                  0.f,
-                  mIncludeFontPadding);
+              layout =
+                  new StaticLayout(
+                      text, textPaint, (int) width, alignment, 1.f, 0.f, mIncludeFontPadding);
             } else {
-              layout = StaticLayout.Builder.obtain(text, 0, text.length(), textPaint, (int) width)
-                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
-                .setLineSpacing(0.f, 1.f)
-                .setIncludePad(mIncludeFontPadding)
-                .setBreakStrategy(mTextBreakStrategy)
-                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NORMAL)
-                .build();
+              layout =
+                  StaticLayout.Builder.obtain(text, 0, text.length(), textPaint, (int) width)
+                      .setAlignment(alignment)
+                      .setLineSpacing(0.f, 1.f)
+                      .setIncludePad(mIncludeFontPadding)
+                      .setBreakStrategy(mTextBreakStrategy)
+                      .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NORMAL)
+                      .build();
             }
           }
 
-          if (mNumberOfLines != UNSET &&
-              mNumberOfLines < layout.getLineCount()) {
+          if (mShouldNotifyOnTextLayout) {
+            WritableArray lines =
+                FontMetricsUtil.getFontMetrics(
+                    text, layout, sTextPaintInstance, getThemedContext());
+            WritableMap event = Arguments.createMap();
+            event.putArray("lines", lines);
+            getThemedContext()
+                .getJSModule(RCTEventEmitter.class)
+                .receiveEvent(getReactTag(), "topTextLayout", event);
+          }
+
+          if (mNumberOfLines != UNSET && mNumberOfLines < layout.getLineCount()) {
             return YogaMeasureOutput.make(
-                layout.getWidth(),
-                layout.getLineBottom(mNumberOfLines - 1));
+                layout.getWidth(), layout.getLineBottom(mNumberOfLines - 1));
           } else {
             return YogaMeasureOutput.make(layout.getWidth(), layout.getHeight());
           }
@@ -142,34 +174,10 @@ public class ReactTextShadowNode extends ReactBaseTextShadowNode {
     initMeasureFunction();
   }
 
-  private ReactTextShadowNode(ReactTextShadowNode node) {
-    super(node);
-    this.mPreparedSpannableText = node.mPreparedSpannableText;
-  }
-
   private void initMeasureFunction() {
     if (!isVirtual()) {
       setMeasureFunction(mTextMeasureFunction);
     }
-  }
-
-  @Override
-  protected LayoutShadowNode copy() {
-    return new ReactTextShadowNode(this);
-  }
-
-  @Override
-  public ReactShadowNodeImpl mutableCopy(long instanceHandle) {
-    ReactTextShadowNode copy = (ReactTextShadowNode) super.mutableCopy(instanceHandle);
-    copy.initMeasureFunction();
-    return copy;
-  }
-
-  @Override
-  public ReactShadowNodeImpl mutableCopyWithNewChildren(long instanceHandle) {
-    ReactTextShadowNode copy = (ReactTextShadowNode) super.mutableCopyWithNewChildren(instanceHandle);
-    copy.initMeasureFunction();
-    return copy;
   }
 
   // Return text alignment according to LTR or RTL style
@@ -186,13 +194,25 @@ public class ReactTextShadowNode extends ReactBaseTextShadowNode {
   }
 
   @Override
-  public void onBeforeLayout() {
-    mPreparedSpannableText = spannedFromShadowNode(this, null);
+  public void onBeforeLayout(NativeViewHierarchyOptimizer nativeViewHierarchyOptimizer) {
+    mPreparedSpannableText = spannedFromShadowNode(
+        this,
+        /* text (e.g. from `value` prop): */ null,
+        /* supportsInlineViews: */ true,
+        nativeViewHierarchyOptimizer);
     markUpdated();
   }
 
   @Override
   public boolean isVirtualAnchor() {
+    // Text's descendants aren't necessarily all virtual nodes. Text can contain a combination of
+    // virtual and non-virtual (e.g. inline views) nodes. Therefore it's not a virtual anchor
+    // by the doc comment on {@link ReactShadowNode#isVirtualAnchor}.
+    return false;
+  }
+
+  @Override
+  public boolean hoistNativeChildren() {
     return true;
   }
 
@@ -209,18 +229,46 @@ public class ReactTextShadowNode extends ReactBaseTextShadowNode {
 
     if (mPreparedSpannableText != null) {
       ReactTextUpdate reactTextUpdate =
-        new ReactTextUpdate(
-          mPreparedSpannableText,
-          UNSET,
-          mContainsImages,
-          getPadding(Spacing.START),
-          getPadding(Spacing.TOP),
-          getPadding(Spacing.END),
-          getPadding(Spacing.BOTTOM),
-          getTextAlign(),
-          mTextBreakStrategy
-        );
+          new ReactTextUpdate(
+              mPreparedSpannableText,
+              UNSET,
+              mContainsImages,
+              getPadding(Spacing.START),
+              getPadding(Spacing.TOP),
+              getPadding(Spacing.END),
+              getPadding(Spacing.BOTTOM),
+              getTextAlign(),
+              mTextBreakStrategy,
+              mJustificationMode);
       uiViewOperationQueue.enqueueUpdateExtraData(getReactTag(), reactTextUpdate);
     }
+  }
+
+  @ReactProp(name = "onTextLayout")
+  public void setShouldNotifyOnTextLayout(boolean shouldNotifyOnTextLayout) {
+    mShouldNotifyOnTextLayout = shouldNotifyOnTextLayout;
+  }
+
+  @Override
+  public Iterable<? extends ReactShadowNode> calculateLayoutOnChildren() {
+    // Run flexbox on and return the descendants which are inline views.
+
+    if (mInlineViews == null || mInlineViews.isEmpty()) {
+      return null;
+    }
+
+    Spanned text = Assertions.assertNotNull(
+        this.mPreparedSpannableText,
+        "Spannable element has not been prepared in onBeforeLayout");
+    TextInlineViewPlaceholderSpan[] placeholders = text.getSpans(0, text.length(), TextInlineViewPlaceholderSpan.class);
+    ArrayList<ReactShadowNode> shadowNodes = new ArrayList<ReactShadowNode>(placeholders.length);
+
+    for (TextInlineViewPlaceholderSpan placeholder : placeholders) {
+      ReactShadowNode child = mInlineViews.get(placeholder.getReactTag());
+      child.calculateLayout();
+      shadowNodes.add(child);
+    }
+
+    return shadowNodes;
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,7 +13,7 @@
 const React = require('React');
 
 import type {Category} from 'YellowBoxCategory';
-import type {Registry, Subscription} from 'YellowBoxRegistry';
+import type {Registry, Subscription, IgnorePattern} from 'YellowBoxRegistry';
 
 type Props = $ReadOnly<{||}>;
 type State = {|
@@ -50,7 +50,7 @@ if (__DEV__) {
 
   // eslint-disable-next-line no-shadow
   YellowBox = class YellowBox extends React.Component<Props, State> {
-    static ignoreWarnings(patterns: $ReadOnlyArray<string>): void {
+    static ignoreWarnings(patterns: $ReadOnlyArray<IgnorePattern>): void {
       YellowBoxRegistry.addIgnorePatterns(patterns);
     }
 
@@ -135,7 +135,7 @@ if (__DEV__) {
   };
 } else {
   YellowBox = class extends React.Component<Props> {
-    static ignoreWarnings(patterns: $ReadOnlyArray<string>): void {
+    static ignoreWarnings(patterns: $ReadOnlyArray<IgnorePattern>): void {
       // Do nothing.
     }
 

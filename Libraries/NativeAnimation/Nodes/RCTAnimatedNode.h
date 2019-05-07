@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -22,6 +22,8 @@
 @property (nonatomic, copy, readonly) NSMapTable<NSNumber *, RCTAnimatedNode *> *parentNodes;
 
 @property (nonatomic, readonly) BOOL needsUpdate;
+
+-(BOOL)isManagedByFabric;
 
 /**
  * Marks a node and its children as needing update.

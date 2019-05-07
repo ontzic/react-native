@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -57,11 +57,20 @@ RCT_NUMBER_CONVERTER(NSUInteger, unsignedIntegerValue)
 
 RCT_JSON_CONVERTER(NSArray)
 RCT_JSON_CONVERTER(NSDictionary)
-RCT_JSON_CONVERTER(NSString)
 RCT_JSON_CONVERTER(NSNumber)
 
 RCT_CUSTOM_CONVERTER(NSSet *, NSSet, [NSSet setWithArray:json])
 RCT_CUSTOM_CONVERTER(NSData *, NSData, [json dataUsingEncoding:NSUTF8StringEncoding])
+
++ (NSString *)NSString:(id)json
+{
+  if ([json isKindOfClass:NSString.class]) {
+    return json;
+  } else if (json && json != (id)kCFNull) {
+    return [NSString stringWithFormat:@"%@",json];
+  }
+  return nil;
+}
 
 + (NSIndexSet *)NSIndexSet:(id)json
 {
@@ -93,7 +102,14 @@ RCT_CUSTOM_CONVERTER(NSData *, NSData, [json dataUsingEncoding:NSUTF8StringEncod
 
     // Check if it has a scheme
     if ([path rangeOfString:@":"].location != NSNotFound) {
-      path = [path stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+      NSMutableCharacterSet *urlAllowedCharacterSet = [NSMutableCharacterSet new];
+      [urlAllowedCharacterSet formUnionWithCharacterSet:[NSCharacterSet URLUserAllowedCharacterSet]];
+      [urlAllowedCharacterSet formUnionWithCharacterSet:[NSCharacterSet URLPasswordAllowedCharacterSet]];
+      [urlAllowedCharacterSet formUnionWithCharacterSet:[NSCharacterSet URLHostAllowedCharacterSet]];
+      [urlAllowedCharacterSet formUnionWithCharacterSet:[NSCharacterSet URLPathAllowedCharacterSet]];
+      [urlAllowedCharacterSet formUnionWithCharacterSet:[NSCharacterSet URLQueryAllowedCharacterSet]];
+      [urlAllowedCharacterSet formUnionWithCharacterSet:[NSCharacterSet URLFragmentAllowedCharacterSet]];
+      path = [path stringByAddingPercentEncodingWithAllowedCharacters:urlAllowedCharacterSet];
       URL = [NSURL URLWithString:path];
       if (URL) {
         return URL;
@@ -353,6 +369,7 @@ RCT_ENUM_CONVERTER(UIKeyboardType, (@{
   @"decimal-pad": @(UIKeyboardTypeDecimalPad),
   @"twitter": @(UIKeyboardTypeTwitter),
   @"web-search": @(UIKeyboardTypeWebSearch),
+  @"ascii-capable-number-pad": @(UIKeyboardTypeASCIICapableNumberPad),
   // Added for Android compatibility
   @"numeric": @(UIKeyboardTypeDecimalPad),
 }), UIKeyboardTypeDefault, integerValue)
@@ -427,6 +444,8 @@ RCT_ENUM_CONVERTER(UIViewContentMode, (@{
 RCT_ENUM_CONVERTER(UIBarStyle, (@{
   @"default": @(UIBarStyleDefault),
   @"black": @(UIBarStyleBlack),
+  @"blackOpaque": @(UIBarStyleBlackOpaque),
+  @"blackTranslucent": @(UIBarStyleBlackTranslucent),  
 }), UIBarStyleDefault, integerValue)
 #endif
 #else // [TODO(macOS ISS#2323203)
@@ -1054,6 +1073,16 @@ RCT_ENUM_CONVERTER(RCTAnimationType, (@{
   NSString *scheme = URL.scheme.lowercaseString;
   if ([scheme isEqualToString:@"file"]) {
     image = RCTImageFromLocalAssetURL(URL);
+    // There is a case where this may fail when the image is at the bundle location.
+    // RCTImageFromLocalAssetURL only checks for the image in the same location as the jsbundle
+    // Hence, if the bundle is CodePush-ed, it will not be able to find the image.
+    // This check is added here instead of being inside RCTImageFromLocalAssetURL, since
+    // we don't want breaking changes to RCTImageFromLocalAssetURL, which is called in a lot of places
+    // This is a deprecated method, and hence has the least impact on existing code. Basically,
+    // instead of crashing the app, it tries one more location for the image. 
+    if (!image) {
+      image = RCTImageFromLocalBundleAssetURL(URL);
+    }
     if (!image) {
       RCTLogConvertError(json, @"an image. File not found.");
     }

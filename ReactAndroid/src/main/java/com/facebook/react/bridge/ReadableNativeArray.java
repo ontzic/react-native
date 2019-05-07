@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,12 +7,14 @@
 
 package com.facebook.react.bridge;
 
+import com.facebook.infer.annotation.Assertions;
 import com.facebook.jni.HybridData;
 import com.facebook.proguard.annotations.DoNotStrip;
-
+import com.facebook.react.config.ReactFeatureFlags;
 import java.util.ArrayList;
 import java.util.Arrays;
-import com.facebook.infer.annotation.Assertions;
+
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -34,16 +36,11 @@ public class ReadableNativeArray extends NativeArray implements ReadableArray {
   private @Nullable ReadableType[] mLocalTypeArray;
 
   private static int jniPassCounter = 0;
-  private static boolean mUseNativeAccessor = false;
-  public static void setUseNativeAccessor(boolean useNativeAccessor) {
-    mUseNativeAccessor = useNativeAccessor;
-  }
   public static int getJNIPassCounter() {
     return jniPassCounter;
   }
 
   private Object[] getLocalArray() {
-    // Fast, non blocking check for the common case
     if (mLocalArray != null) {
       return mLocalArray;
     }
@@ -59,7 +56,6 @@ public class ReadableNativeArray extends NativeArray implements ReadableArray {
   private native Object[] importArray();
 
   private ReadableType[] getLocalTypeArray() {
-    // Fast, non-blocking check for the common case
     if (mLocalTypeArray != null) {
       return mLocalTypeArray;
     }
@@ -77,102 +73,70 @@ public class ReadableNativeArray extends NativeArray implements ReadableArray {
 
   @Override
   public int size() {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return sizeNative();
-    }
     return getLocalArray().length;
   }
-  private native int sizeNative();
 
   @Override
   public boolean isNull(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return isNullNative(index);
-    }
     return getLocalArray()[index] == null;
   }
-  private native boolean isNullNative(int index);
 
   @Override
   public boolean getBoolean(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getBooleanNative(index);
-    }
     return ((Boolean) getLocalArray()[index]).booleanValue();
   }
-  private native boolean getBooleanNative(int index);
 
   @Override
   public double getDouble(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getDoubleNative(index);
-    }
     return ((Double) getLocalArray()[index]).doubleValue();
   }
-  private native double getDoubleNative(int index);
 
   @Override
   public int getInt(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getIntNative(index);
-    }
     return ((Double) getLocalArray()[index]).intValue();
   }
-  private native int getIntNative(int index);
 
   @Override
-  public String getString(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getStringNative(index);
-    }
+  public @Nullable String getString(int index) {
     return (String) getLocalArray()[index];
   }
-  private native String getStringNative(int index);
 
   @Override
-  public ReadableNativeArray getArray(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getArrayNative(index);
-    }
+  public @Nullable ReadableNativeArray getArray(int index) {
     return (ReadableNativeArray) getLocalArray()[index];
   }
-  private native ReadableNativeArray getArrayNative(int index);
 
   @Override
-  public ReadableNativeMap getMap(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getMapNative(index);
-    }
+  public @Nullable ReadableNativeMap getMap(int index) {
     return (ReadableNativeMap) getLocalArray()[index];
   }
-  private native ReadableNativeMap getMapNative(int index);
 
   @Override
-  public ReadableType getType(int index) {
-    if (mUseNativeAccessor) {
-      jniPassCounter++;
-      return getTypeNative(index);
-    }
+  public @Nonnull ReadableType getType(int index) {
     return getLocalTypeArray()[index];
   }
 
-  private native ReadableType getTypeNative(int index);
-
   @Override
-  public Dynamic getDynamic(int index) {
+  public @Nonnull Dynamic getDynamic(int index) {
     return DynamicFromArray.create(this, index);
   }
 
   @Override
-  public ArrayList<Object> toArrayList() {
+  public int hashCode() {
+    return getLocalArray().hashCode();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof ReadableNativeArray)) {
+      return false;
+    }
+    ReadableNativeArray other = (ReadableNativeArray) obj;
+    return Arrays.deepEquals(getLocalArray(), other.getLocalArray());
+  }
+
+  @Override
+  public @Nonnull ArrayList<Object> toArrayList() {
     ArrayList<Object> arrayList = new ArrayList<>();
 
     for (int i = 0; i < this.size(); i++) {

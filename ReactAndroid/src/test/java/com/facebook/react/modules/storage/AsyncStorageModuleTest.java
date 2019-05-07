@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -55,7 +55,7 @@ import static org.fest.assertions.api.Assertions.assertThat;
  * Tests for {@link AsyncStorageModule}.
  */
 @PrepareForTest({Arguments.class})
-@PowerMockIgnore({"org.mockito.*", "org.robolectric.*", "android.*", "org.json.*"})
+@PowerMockIgnore({"org.mockito.*", "org.robolectric.*", "androidx.*", "android.*", "org.json.*"})
 @RunWith(RobolectricTestRunner.class)
 public class AsyncStorageModuleTest {
 

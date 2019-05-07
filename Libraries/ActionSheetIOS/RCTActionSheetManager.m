@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,12 +13,7 @@
 #import <React/RCTUIManager.h>
 #import <React/RCTUtils.h>
 
-@interface RCTActionSheetManager ()
-#if !TARGET_OS_OSX // [TODO(macOS ISS#2323203)
-<UIActionSheetDelegate>
-#else
-<NSSharingServicePickerDelegate>
-#endif // ]TODO(macOS ISS#2323203)
+@interface RCTActionSheetManager () <UIActionSheetDelegate>
 @end
 
 @implementation RCTActionSheetManager
@@ -26,12 +21,6 @@
   // Use NSMapTable, as UIAlertViews do not implement <NSCopying>
   // which is required for NSDictionary keys
   NSMapTable *_callbacks;
-#if TARGET_OS_OSX // [TODO(macOS ISS#2323203)
-  NSArray<NSSharingService*> *_excludedActivities;
-  NSString *_sharingSubject;
-  RCTResponseErrorBlock _failureCallback;
-  RCTResponseSenderBlock _successCallback;
-#endif // ]TODO(macOS ISS#2323203)
 }
 
 RCT_EXPORT_MODULE()
@@ -43,65 +32,61 @@ RCT_EXPORT_MODULE()
   return dispatch_get_main_queue();
 }
 
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
-/*
- * The `anchor` option takes a view to set as the anchor for the share
- * popup to point to, on iPads running iOS 8. If it is not passed, it
- * defaults to centering the share popup on screen without any arrows.
- */
-- (CGRect)sourceRectInView:(UIView *)sourceView
-             anchorViewTag:(NSNumber *)anchorViewTag
+- (void)presentViewController:(UIViewController *)alertController
+       onParentViewController:(UIViewController *)parentViewController
+                anchorViewTag:(NSNumber *)anchorViewTag
 {
+  alertController.modalPresentationStyle = UIModalPresentationPopover;
+  UIView *sourceView = parentViewController.view;
+
   if (anchorViewTag) {
-    UIView *anchorView = [self.bridge.uiManager viewForReactTag:anchorViewTag];
-    return [anchorView convertRect:anchorView.bounds toView:sourceView];
+    sourceView = [self.bridge.uiManager viewForReactTag:anchorViewTag];
   } else {
-    return (CGRect){sourceView.center, {1, 1}};
+    alertController.popoverPresentationController.permittedArrowDirections = 0;
   }
+  alertController.popoverPresentationController.sourceView = sourceView;
+  alertController.popoverPresentationController.sourceRect = sourceView.bounds;
+  [parentViewController presentViewController:alertController animated:YES completion:nil];
 }
-#endif // TODO(macOS ISS#2323203)
 
 RCT_EXPORT_METHOD(showActionSheetWithOptions:(NSDictionary *)options
                   callback:(RCTResponseSenderBlock)callback)
 {
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
   if (RCTRunningInAppExtension()) {
     RCTLogError(@"Unable to show action sheet from app extension");
     return;
   }
-#endif // TODO(macOS ISS#2323203)
 
   if (!_callbacks) {
     _callbacks = [NSMapTable strongToStrongObjectsMapTable];
   }
 
   NSString *title = [RCTConvert NSString:options[@"title"]];
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
   NSString *message = [RCTConvert NSString:options[@"message"]];
-#endif // TODO(macOS ISS#2323203)
   NSArray<NSString *> *buttons = [RCTConvert NSStringArray:options[@"options"]];
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
-  NSInteger destructiveButtonIndex = options[@"destructiveButtonIndex"] ? [RCTConvert NSInteger:options[@"destructiveButtonIndex"]] : -1;
-#endif // TODO(macOS ISS#2323203)
   NSInteger cancelButtonIndex = options[@"cancelButtonIndex"] ? [RCTConvert NSInteger:options[@"cancelButtonIndex"]] : -1;
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
+  NSArray<NSNumber *> *destructiveButtonIndices;
+  if ([options[@"destructiveButtonIndex"] isKindOfClass:[NSArray class]]) {
+    destructiveButtonIndices = [RCTConvert NSArray:options[@"destructiveButtonIndex"]];
+  } else {
+    NSNumber *destructiveButtonIndex = options[@"destructiveButtonIndex"] ? [RCTConvert NSNumber:options[@"destructiveButtonIndex"]] : @-1;
+    destructiveButtonIndices = @[destructiveButtonIndex];
+  }
+
   UIViewController *controller = RCTPresentedViewController();
 
   if (controller == nil) {
     RCTLogError(@"Tried to display action sheet but there is no application window. options: %@", options);
     return;
   }
-#endif // TODO(macOS ISS#2323203)
+
   /*
    * The `anchor` option takes a view to set as the anchor for the share
    * popup to point to, on iPads running iOS 8. If it is not passed, it
    * defaults to centering the share popup on screen without any arrows.
    */
   NSNumber *anchorViewTag = [RCTConvert NSNumber:options[@"anchor"]];
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
-  UIView *sourceView = controller.view;
-  CGRect sourceRect = [self sourceRectInView:sourceView anchorViewTag:anchorViewTag];
-
+  
   UIAlertController *alertController =
   [UIAlertController alertControllerWithTitle:title
                                       message:message
@@ -110,7 +95,7 @@ RCT_EXPORT_METHOD(showActionSheetWithOptions:(NSDictionary *)options
   NSInteger index = 0;
   for (NSString *option in buttons) {
     UIAlertActionStyle style = UIAlertActionStyleDefault;
-    if (index == destructiveButtonIndex) {
+    if ([destructiveButtonIndices containsObject:@(index)]) {
       style = UIAlertActionStyleDestructive;
     } else if (index == cancelButtonIndex) {
       style = UIAlertActionStyleCancel;
@@ -126,60 +111,18 @@ RCT_EXPORT_METHOD(showActionSheetWithOptions:(NSDictionary *)options
     index++;
   }
 
-  alertController.modalPresentationStyle = UIModalPresentationPopover;
-  alertController.popoverPresentationController.sourceView = sourceView;
-  alertController.popoverPresentationController.sourceRect = sourceRect;
-  if (!anchorViewTag) {
-    alertController.popoverPresentationController.permittedArrowDirections = 0;
-  }
-  [controller presentViewController:alertController animated:YES completion:nil];
-
   alertController.view.tintColor = [RCTConvert UIColor:options[@"tintColor"]];
-#else // [TODO(macOS ISS#2323203)
-  NSMenu *menu = [[NSMenu alloc] initWithTitle:title ?: @""];
-  [_callbacks setObject:callback forKey:menu];
-  for (NSInteger index = 0; index < buttons.count; index++) {
-    if (index == cancelButtonIndex) {
-      //NSMenu doesn't require a cancel button
-      continue;
-    }
-    
-    NSString *option = buttons[index];
-    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:option action:@selector(menuItemDidTap:) keyEquivalent:@""];
-    item.tag = index;
-    item.target = self;
-    [menu addItem:item];
-  }
-  
-  NSPoint origin = NSZeroPoint;
-  NSEvent *event = nil;
-  RCTPlatformView *view = nil;
-  if (anchorViewTag) {
-    view = [self.bridge.uiManager viewForReactTag:anchorViewTag];
-    event = [view.window currentEvent];
-  }
-  if (event && view) {
-    origin = [view convertPoint:[event locationInWindow] fromView:nil];
-  } else if (view) {
-    origin = NSMakePoint(NSMidX(view.superview.frame), NSMidY(view.superview.frame));
-  } else {
-    origin = [NSEvent mouseLocation];
-  }
-  
-  [menu popUpMenuPositioningItem:menu.itemArray.firstObject atLocation:origin inView:view.superview];
-#endif // ]TODO(macOS ISS#2323203)
+  [self presentViewController:alertController onParentViewController:controller anchorViewTag:anchorViewTag];
 }
 
 RCT_EXPORT_METHOD(showShareActionSheetWithOptions:(NSDictionary *)options
                   failureCallback:(RCTResponseErrorBlock)failureCallback
                   successCallback:(RCTResponseSenderBlock)successCallback)
 {
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
   if (RCTRunningInAppExtension()) {
     RCTLogError(@"Unable to show action sheet from app extension");
     return;
   }
-#endif // TODO(macOS ISS#2323203)
 
   NSMutableArray<id> *items = [NSMutableArray array];
   NSString *message = [RCTConvert NSString:options[@"message"]];
@@ -207,7 +150,6 @@ RCT_EXPORT_METHOD(showShareActionSheetWithOptions:(NSDictionary *)options
     return;
   }
 
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
   UIActivityViewController *shareController = [[UIActivityViewController alloc] initWithActivityItems:items applicationActivities:nil];
 
   NSString *subject = [RCTConvert NSString:options[@"subject"]];
@@ -229,90 +171,10 @@ RCT_EXPORT_METHOD(showShareActionSheetWithOptions:(NSDictionary *)options
     }
   };
 
-  shareController.modalPresentationStyle = UIModalPresentationPopover;
   NSNumber *anchorViewTag = [RCTConvert NSNumber:options[@"anchor"]];
-  if (!anchorViewTag) {
-    shareController.popoverPresentationController.permittedArrowDirections = 0;
-  }
-  shareController.popoverPresentationController.sourceView = controller.view;
-  shareController.popoverPresentationController.sourceRect = [self sourceRectInView:controller.view anchorViewTag:anchorViewTag];
-
-  [controller presentViewController:shareController animated:YES completion:nil];
-
   shareController.view.tintColor = [RCTConvert UIColor:options[@"tintColor"]];
-#else // [TODO(macOS ISS#2323203)
-  NSMutableArray<NSSharingService*> *excludedTypes = [NSMutableArray array];
-  for (NSString *excludeActivityType in [RCTConvert NSStringArray:options[@"excludedActivityTypes"]]) {
-    NSSharingService *sharingService = [NSSharingService sharingServiceNamed:excludeActivityType];
-    if (sharingService) {
-      [excludedTypes addObject:sharingService];
-    }
-  }
-  _excludedActivities = excludedTypes.copy;
-  _sharingSubject = [RCTConvert NSString:options[@"subject"]];
-  _failureCallback = failureCallback;
-  _successCallback = successCallback;
-  RCTPlatformView *view = nil;
-  NSNumber *anchorViewTag = [RCTConvert NSNumber:options[@"anchor"]];
-  if (anchorViewTag) {
-    view = [self.bridge.uiManager viewForReactTag:anchorViewTag];
-  }
-  NSView *contentView = view ?: NSApp.keyWindow.contentView;
-  NSSharingServicePicker *picker = [[NSSharingServicePicker alloc] initWithItems:items];
-  picker.delegate = self;
-  [picker showRelativeToRect:contentView.bounds ofView:contentView preferredEdge:0];
-#endif // ]TODO(macOS ISS#2323203)
-}
-
-#if TARGET_OS_OSX // [TODO(macOS ISS#2323203)
-
-#pragma mark - NSSharingServicePickerDelegate methods
-
-- (void)menuItemDidTap:(NSMenuItem*)menuItem
-{
-  NSMenu *actionSheet = menuItem.menu;
-  NSInteger buttonIndex = menuItem.tag;
-  RCTResponseSenderBlock callback = [_callbacks objectForKey:actionSheet];
-  if (callback) {
-    callback(@[@(buttonIndex)]);
-    [_callbacks removeObjectForKey:actionSheet];
-  } else {
-    RCTLogWarn(@"No callback registered for action sheet: %@", actionSheet.title);
-  }
-}
-
-- (void)sharingServicePicker:(NSSharingServicePicker *)sharingServicePicker didChooseSharingService:(NSSharingService *)service
-{
-  if (service){
-    service.subject = _sharingSubject;
-  }
-}
   
-- (void)sharingService:(NSSharingService *)sharingService didFailToShareItems:(NSArray *)items error:(NSError *)error
-{
-  _failureCallback(error);
+  [self presentViewController:shareController onParentViewController:controller anchorViewTag:anchorViewTag];
 }
 
-- (void)sharingService:(NSSharingService *)sharingService didShareItems:(NSArray *)items
-{
-  NSRange range = [sharingService.description rangeOfString:@"\\[com.apple.share.*\\]" options:NSRegularExpressionSearch];
-  if (range.location == NSNotFound) {
-    _successCallback(@[@NO, (id)kCFNull]);
-    return;
-  }
-  range.location++; // Start after [
-  range.length -= 2; // Remove both [ and ]
-  NSString *activityType = [sharingService.description substringWithRange:range];
-  _successCallback(@[@YES, RCTNullIfNil(activityType)]);
-}
-  
-- (NSArray<NSSharingService *> *)sharingServicePicker:(__unused NSSharingServicePicker *)sharingServicePicker sharingServicesForItems:(__unused NSArray *)items proposedSharingServices:(NSArray<NSSharingService *> *)proposedServices
-{
-  return [proposedServices filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSSharingService *service, __unused NSDictionary<NSString *,id> * _Nullable bindings) {
-    return ![self->_excludedActivities containsObject:service];
-  }]];
-}
-  
-#endif // ]TODO(macOS ISS#2323203)
-  
 @end

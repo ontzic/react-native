@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -53,5 +53,19 @@ describe('mapWithSeparator', () => {
       },
     );
     expect(result).toEqual([3, 0, 2, 1, 1]);
+  });
+
+  it('mapWithSeparator returns empty array when empty array is given as input', () => {
+    const array = [];
+    const result = mapWithSeparator(
+      array,
+      function(value) {
+        return value * 2;
+      },
+      function() {
+        return 0;
+      },
+    );
+    expect(result).toEqual([]);
   });
 });

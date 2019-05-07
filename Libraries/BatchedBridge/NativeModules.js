@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -12,7 +12,7 @@
 
 const BatchedBridge = require('BatchedBridge');
 
-const invariant = require('fbjs/lib/invariant');
+const invariant = require('invariant');
 
 import type {ExtendedError} from 'parseErrorStack';
 
@@ -60,7 +60,16 @@ function genModule(
       const methodType = isPromise ? 'promise' : isSync ? 'sync' : 'async';
       module[methodName] = genMethod(moduleID, methodID, methodType);
     });
+
   Object.assign(module, constants);
+
+  if (module.getConstants == null) {
+    module.getConstants = () => constants;
+  } else {
+    console.warn(
+      `Unable to define method 'getConstants()' on NativeModule '${moduleName}'. NativeModule '${moduleName}' already has a constant or method called 'getConstants'. Please remove it.`,
+    );
+  }
 
   if (__DEV__) {
     BatchedBridge.createDebugLookup(moduleID, moduleName, methods);
@@ -96,19 +105,6 @@ function genMethod(moduleID: number, methodID: number, type: MethodType) {
         );
       });
     };
-  } else if (type === 'sync') {
-    fn = function(...args: Array<any>) {
-      if (__DEV__) {
-        invariant(
-          global.nativeCallSyncHook,
-          'Calling synchronous methods on native ' +
-            'modules is not supported in Chrome.\n\n Consider providing alternative ' +
-            'methods to expose this method in debug mode, e.g. by exposing constants ' +
-            'ahead-of-time.',
-        );
-      }
-      return global.nativeCallSyncHook(moduleID, methodID, args);
-    };
   } else {
     fn = function(...args: Array<any>) {
       const lastArg = args.length > 0 ? args[args.length - 1] : null;
@@ -124,13 +120,23 @@ function genMethod(moduleID: number, methodID: number, type: MethodType) {
       const onFail = hasErrorCallback ? secondLastArg : null;
       const callbackCount = hasSuccessCallback + hasErrorCallback;
       args = args.slice(0, args.length - callbackCount);
-      BatchedBridge.enqueueNativeCall(
-        moduleID,
-        methodID,
-        args,
-        onFail,
-        onSuccess,
-      );
+      if (type === 'sync') {
+        return BatchedBridge.callNativeSyncHook(
+          moduleID,
+          methodID,
+          args,
+          onFail,
+          onSuccess,
+        );
+      } else {
+        BatchedBridge.enqueueNativeCall(
+          moduleID,
+          methodID,
+          args,
+          onFail,
+          onSuccess,
+        );
+      }
     };
   }
   fn.type = type;

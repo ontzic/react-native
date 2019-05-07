@@ -1,4 +1,4 @@
-// Copyright (c) 2004-present, Facebook, Inc.
+// Copyright (c) Facebook, Inc. and its affiliates.
 
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
@@ -75,16 +75,6 @@ public class LayoutShadowNode extends ReactShadowNodeImpl {
     mTempYogaValue = new MutableYogaValue();
   }
 
-  protected LayoutShadowNode(LayoutShadowNode node) {
-    super(node);
-    mTempYogaValue = new MutableYogaValue(node.mTempYogaValue);
-  }
-
-  @Override
-  protected LayoutShadowNode copy() {
-    return new LayoutShadowNode(this);
-  }
-
   @ReactProp(name = ViewProps.WIDTH)
   public void setWidth(Dynamic width) {
     if (isVirtual()) {
@@ -126,6 +116,12 @@ public class LayoutShadowNode extends ReactShadowNodeImpl {
     }
 
     minWidth.recycle();
+  }
+
+  boolean mCollapsable;
+  @ReactProp(name = "collapsable")
+  public void setCollapsable(boolean collapsable) {
+    mCollapsable = collapsable;
   }
 
   @ReactProp(name = ViewProps.MAX_WIDTH)

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,8 +11,7 @@
 'use strict';
 
 const React = require('react');
-const ReactNative = require('react-native');
-const {NetInfo, Text, View, TouchableWithoutFeedback} = ReactNative;
+const {NetInfo, Text, View, TouchableWithoutFeedback} = require('react-native');
 
 class ConnectionInfoSubscription extends React.Component<{}, $FlowFixMeState> {
   state = {
@@ -133,8 +132,8 @@ class IsConnectionExpensive extends React.Component<{}, $FlowFixMeState> {
               {this.state.isConnectionExpensive === true
                 ? 'Expensive'
                 : this.state.isConnectionExpensive === false
-                  ? 'Not expensive'
-                  : 'Unknown'}
+                ? 'Not expensive'
+                : 'Unknown'}
             </Text>
           </View>
         </TouchableWithoutFeedback>

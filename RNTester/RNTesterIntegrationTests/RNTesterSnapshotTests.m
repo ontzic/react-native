@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
  */
 
-#import <React/RCTUIKit.h>
+#import <UIKit/UIKit.h>
 #import <XCTest/XCTest.h>
 
 #import <RCTTest/RCTTestRunner.h>
@@ -22,16 +22,10 @@
 
 - (void)setUp
 {
-#if !TARGET_OS_OSX
   _runner = RCTInitRunnerForApp(@"RNTester/js/RNTesterApp.ios", nil, nil);
-  if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 11) {
-    _runner.testSuffix = @"-iOS11";
-  } else if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 10) {
-    _runner.testSuffix = @"-iOS10";
+  if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 10) {
+    _runner.testSuffix = [NSString stringWithFormat:@"-iOS%d", UIDevice.currentDevice.systemVersion.intValue];
   }
-#else // TARGET_OS_OSX
-  _runner = RCTInitRunnerForApp(@"RNTester/js/RNTesterApp.macos", nil, nil);
-#endif
   _runner.recordMode = NO;
 }
 
@@ -41,17 +35,15 @@
   [_runner runTest:_cmd module:@#name]; \
 }
 
-// TODO(ISS#2739352: the tests disabled below do not reliably pass on XCode 10.1)
-//RCT_TEST(ViewExample)
+RCT_TEST(ViewExample)
 RCT_TEST(LayoutExample)
 RCT_TEST(ARTExample)
 RCT_TEST(ScrollViewExample)
-//RCT_TEST(TextExample)
+RCT_TEST(TextExample)
 #if !TARGET_OS_TV
 // No switch or slider available on tvOS
-//RCT_TEST(SwitchExample)
-//RCT_TEST(SliderExample)
-//RCT_TEST(TabBarExample)
+RCT_TEST(SwitchExample)
+RCT_TEST(SliderExample)
 #endif
 
 - (void)testZZZNotInRecordMode

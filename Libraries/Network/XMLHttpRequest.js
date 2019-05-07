@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,14 +13,8 @@
 const EventTarget = require('event-target-shim');
 const RCTNetworking = require('RCTNetworking');
 
-/* $FlowFixMe(>=0.54.0 site=react_native_oss) This comment suppresses an error
- * found when Flow v0.54 was deployed. To see the error delete this comment and
- * run Flow. */
 const base64 = require('base64-js');
-const invariant = require('fbjs/lib/invariant');
-/* $FlowFixMe(>=0.54.0 site=react_native_oss) This comment suppresses an error
- * found when Flow v0.54 was deployed. To see the error delete this comment and
- * run Flow. */
+const invariant = require('invariant');
 const warning = require('fbjs/lib/warning');
 const BlobManager = require('BlobManager');
 
@@ -246,6 +240,8 @@ class XMLHttpRequest extends EventTarget(...XHR_EVENTS) {
       case 'blob':
         if (typeof this._response === 'object' && this._response) {
           this._cachedResponse = BlobManager.createFromOptions(this._response);
+        } else if (this._response === '') {
+          this._cachedResponse = null;
         } else {
           throw new Error(`Invalid response for blob: ${this._response}`);
         }

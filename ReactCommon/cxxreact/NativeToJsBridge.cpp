@@ -1,4 +1,4 @@
-// Copyright (c) 2004-present, Facebook, Inc.
+// Copyright (c) Facebook, Inc. and its affiliates.
 
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
@@ -37,9 +37,13 @@ public:
   std::shared_ptr<ModuleRegistry> getModuleRegistry() override {
     return m_registry;
   }
+  
+  bool isBatchActive() {
+    return m_batchHadNativeModuleCalls;
+  }
 
   void callNativeModules(
-      JSExecutor& /*executor*/, folly::dynamic&& calls, bool isEndOfBatch) override {
+      __unused JSExecutor& executor, folly::dynamic&& calls, bool isEndOfBatch) override {
 
     CHECK(m_registry || calls.empty()) <<
       "native module calls cannot be completed with no native modules";
@@ -64,7 +68,7 @@ public:
   }
 
   MethodCallResult callSerializableNativeHook(
-      JSExecutor& /*executor*/, unsigned int moduleId, unsigned int methodId,
+      __unused JSExecutor& executor, unsigned int moduleId, unsigned int methodId,
       folly::dynamic&& args) override {
     return m_registry->callSerializableNativeHook(moduleId, methodId, std::move(args));
   }
@@ -80,16 +84,15 @@ private:
 };
 
 NativeToJsBridge::NativeToJsBridge(
-    JSExecutorFactory* jsExecutorFactory,
-    std::shared_ptr<ExecutorDelegate> delegate,
+    JSExecutorFactory *jsExecutorFactory,
     std::shared_ptr<ModuleRegistry> registry,
     std::shared_ptr<MessageQueueThread> jsQueue,
-    std::shared_ptr<InstanceCallback> callback,
-    std::shared_ptr<JSEConfigParams> jseConfigParams)
-    : m_destroyed(std::make_shared<bool>(false))
-    , m_delegate(delegate ? delegate : std::make_shared<JsToNativeBridge>(registry, callback))
-    , m_executor(jsExecutorFactory->createJSExecutor(m_delegate, jsQueue, std::move(jseConfigParams)))
-    , m_executorMessageQueueThread(std::move(jsQueue)) {}
+    std::shared_ptr<InstanceCallback> callback)
+    : m_destroyed(std::make_shared<bool>(false)),
+      m_delegate(std::make_shared<JsToNativeBridge>(registry, callback)),
+      m_executor(jsExecutorFactory->createJSExecutor(m_delegate, jsQueue)),
+      m_executorMessageQueueThread(std::move(jsQueue)),
+      m_inspectable(m_executor->isInspectable()) {}
 
 // This must be called on the same thread on which the constructor was called.
 NativeToJsBridge::~NativeToJsBridge() {
@@ -100,16 +103,13 @@ NativeToJsBridge::~NativeToJsBridge() {
 void NativeToJsBridge::loadApplication(
     std::unique_ptr<RAMBundleRegistry> bundleRegistry,
     std::unique_ptr<const JSBigString> startupScript,
-    uint64_t bundleVersion,
-    std::string startupScriptSourceURL,
-    std::string&& bytecodeFileName) {
+    std::string startupScriptSourceURL) {
+
   runOnExecutorQueue(
       [this,
        bundleRegistryWrap=folly::makeMoveWrapper(std::move(bundleRegistry)),
        startupScript=folly::makeMoveWrapper(std::move(startupScript)),
-       bundleVersion,
-       startupScriptSourceURL=std::move(startupScriptSourceURL),
-       bytecodeFileName=std::move(bytecodeFileName)]
+       startupScriptSourceURL=std::move(startupScriptSourceURL)]
         (JSExecutor* executor) mutable {
     auto bundleRegistry = bundleRegistryWrap.move();
     if (bundleRegistry) {
@@ -117,9 +117,7 @@ void NativeToJsBridge::loadApplication(
     }
     try {
       executor->loadApplicationScript(std::move(*startupScript),
-                                      bundleVersion,
-                                      std::move(startupScriptSourceURL),
-                                      std::move(bytecodeFileName));
+                                      std::move(startupScriptSourceURL));
     } catch (...) {
       m_applicationScriptHasFailure = true;
       throw;
@@ -130,17 +128,13 @@ void NativeToJsBridge::loadApplication(
 void NativeToJsBridge::loadApplicationSync(
     std::unique_ptr<RAMBundleRegistry> bundleRegistry,
     std::unique_ptr<const JSBigString> startupScript,
-    uint64_t bundleVersion,
-    std::string startupScriptSourceURL,
-    std::string&& bytecodeFileName) {
+    std::string startupScriptSourceURL) {
   if (bundleRegistry) {
     m_executor->setBundleRegistry(std::move(bundleRegistry));
   }
   try {
     m_executor->loadApplicationScript(std::move(startupScript),
-                                          bundleVersion,
-                                          std::move(startupScriptSourceURL),
-                                          std::move(bytecodeFileName));
+                                          std::move(startupScriptSourceURL));
   } catch (...) {
     m_applicationScriptHasFailure = true;
     throw;
@@ -172,8 +166,10 @@ void NativeToJsBridge::callFunction(
           TRACE_TAG_REACT_CXX_BRIDGE,
           "JSCall",
           systraceCookie);
-      #endif
       SystraceSection s("NativeToJsBridge::callFunction", "module", module, "method", method);
+      #else
+      (void)(systraceCookie);
+      #endif
       // This is safe because we are running on the executor's thread: it won't
       // destruct until after it's been unregistered (which we check above) and
       // that will happen on this thread
@@ -203,6 +199,8 @@ void NativeToJsBridge::invokeCallback(double callbackId, folly::dynamic&& argume
           "<callback>",
           systraceCookie);
       SystraceSection s("NativeToJsBridge::invokeCallback");
+      #else
+      (void)(systraceCookie);
       #endif
       executor->invokeCallback(callbackId, arguments);
     });
@@ -228,17 +226,17 @@ void* NativeToJsBridge::getJavaScriptContext() {
 }
 
 bool NativeToJsBridge::isInspectable() {
-  return m_executor->isInspectable();
+  return m_inspectable;
+}
+  
+bool NativeToJsBridge::isBatchActive() {
+  return m_delegate->isBatchActive();
 }
 
 void NativeToJsBridge::handleMemoryPressure(int pressureLevel) {
   runOnExecutorQueue([=] (JSExecutor* executor) {
     executor->handleMemoryPressure(pressureLevel);
   });
-}
-
-int64_t NativeToJsBridge::getPeakJsMemoryUsage() const noexcept {
-  return m_executor->getPeakJsMemoryUsage();
 }
 
 void NativeToJsBridge::destroy() {

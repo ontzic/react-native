@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,12 +7,15 @@
 
 #import "RCTParagraphComponentView.h"
 
-#import <fabric/components/text/ParagraphLocalData.h>
-#import <fabric/components/text/ParagraphProps.h>
-#import <fabric/core/LocalData.h>
-#import <fabric/graphics/Geometry.h>
-#import <fabric/textlayoutmanager/TextLayoutManager.h>
-#import <fabric/textlayoutmanager/RCTTextLayoutManager.h>
+#import <react/components/text/ParagraphComponentDescriptor.h>
+#import <react/components/text/ParagraphLocalData.h>
+#import <react/components/text/ParagraphProps.h>
+#import <react/components/text/RawTextComponentDescriptor.h>
+#import <react/components/text/TextComponentDescriptor.h>
+#import <react/core/LocalData.h>
+#import <react/graphics/Geometry.h>
+#import <react/textlayoutmanager/RCTTextLayoutManager.h>
+#import <react/textlayoutmanager/TextLayoutManager.h>
 #import "RCTConversions.h"
 
 using namespace facebook::react;
@@ -25,6 +28,9 @@ using namespace facebook::react;
 - (instancetype)initWithFrame:(CGRect)frame
 {
   if (self = [super initWithFrame:frame]) {
+    static const auto defaultProps = std::make_shared<const ParagraphProps>();
+    _props = defaultProps;
+
     self.isAccessibilityElement = YES;
     self.accessibilityTraits |= UIAccessibilityTraitStaticText;
     self.opaque = NO;
@@ -34,20 +40,40 @@ using namespace facebook::react;
   return self;
 }
 
+#pragma mark - RCTComponentViewProtocol
+
++ (ComponentDescriptorProvider)componentDescriptorProvider
+{
+  return concreteComponentDescriptorProvider<ParagraphComponentDescriptor>();
+}
+
++ (std::vector<facebook::react::ComponentDescriptorProvider>)supplementalComponentDescriptorProviders
+{
+  return {concreteComponentDescriptorProvider<RawTextComponentDescriptor>(),
+          concreteComponentDescriptorProvider<TextComponentDescriptor>()};
+}
+
 - (void)updateProps:(SharedProps)props oldProps:(SharedProps)oldProps
 {
+  const auto &paragraphProps = std::static_pointer_cast<const ParagraphProps>(props);
+
   [super updateProps:props oldProps:oldProps];
-  auto paragraphProps = std::static_pointer_cast<const ParagraphProps>(props);
+
   assert(paragraphProps);
   _paragraphAttributes = paragraphProps->paragraphAttributes;
 }
 
-- (void)updateLocalData:(SharedLocalData)localData
-           oldLocalData:(SharedLocalData)oldLocalData
+- (void)updateLocalData:(SharedLocalData)localData oldLocalData:(SharedLocalData)oldLocalData
 {
   _paragraphLocalData = std::static_pointer_cast<const ParagraphLocalData>(localData);
   assert(_paragraphLocalData);
   [self setNeedsDisplay];
+}
+
+- (void)prepareForRecycle
+{
+  [super prepareForRecycle];
+  _paragraphLocalData.reset();
 }
 
 - (void)drawRect:(CGRect)rect
@@ -56,10 +82,9 @@ using namespace facebook::react;
     return;
   }
 
-  SharedTextLayoutManager textLayoutManager =
-    _paragraphLocalData->getTextLayoutManager();
+  SharedTextLayoutManager textLayoutManager = _paragraphLocalData->getTextLayoutManager();
   RCTTextLayoutManager *nativeTextLayoutManager =
-    (__bridge RCTTextLayoutManager *)textLayoutManager->getNativeTextLayoutManager();
+      (__bridge RCTTextLayoutManager *)textLayoutManager->getNativeTextLayoutManager();
 
   CGRect frame = RCTCGRectFromRect(_layoutMetrics.getContentFrame());
 
@@ -72,7 +97,7 @@ using namespace facebook::react;
 
 - (NSString *)accessibilityLabel
 {
-  NSString *superAccessibilityLabel = [super accessibilityLabel];
+  NSString *superAccessibilityLabel = RCTNSStringFromStringNilIfEmpty(_props->accessibilityLabel);
   if (superAccessibilityLabel) {
     return superAccessibilityLabel;
   }
@@ -82,6 +107,31 @@ using namespace facebook::react;
   }
 
   return RCTNSStringFromString(_paragraphLocalData->getAttributedString().getString());
+}
+
+- (SharedTouchEventEmitter)touchEventEmitterAtPoint:(CGPoint)point
+{
+  if (!_paragraphLocalData) {
+    return _eventEmitter;
+  }
+
+  SharedTextLayoutManager textLayoutManager = _paragraphLocalData->getTextLayoutManager();
+  RCTTextLayoutManager *nativeTextLayoutManager =
+      (__bridge RCTTextLayoutManager *)textLayoutManager->getNativeTextLayoutManager();
+  CGRect frame = RCTCGRectFromRect(_layoutMetrics.getContentFrame());
+
+  SharedEventEmitter eventEmitter =
+      [nativeTextLayoutManager getEventEmitterWithAttributeString:_paragraphLocalData->getAttributedString()
+                                              paragraphAttributes:_paragraphAttributes
+                                                            frame:frame
+                                                          atPoint:point];
+
+  if (!eventEmitter) {
+    return _eventEmitter;
+  }
+
+  assert(std::dynamic_pointer_cast<const TouchEventEmitter>(eventEmitter));
+  return std::static_pointer_cast<const TouchEventEmitter>(eventEmitter);
 }
 
 @end

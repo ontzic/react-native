@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,9 +13,6 @@
 
 /* eslint-env node */
 
-/* $FlowFixMe(>=0.54.0 site=react_native_oss) This comment suppresses an error
- * found when Flow v0.54 was deployed. To see the error delete this comment and
- * run Flow. */
 const WebSocket = require('ws');
 
 console.log(`\
@@ -34,13 +31,7 @@ server.on('connection', ws => {
       console.log('WebSocket integration test server exit');
       process.exit(0);
     }
-    console.log('Cookie:', ws.upgradeReq.headers.cookie);
-
-    if (message instanceof Buffer) {
-      ws.send(message);
-    } else {
-      ws.send(message + '_response');
-    }
+    ws.send(message + '_response');
   });
 
   ws.send('hello');

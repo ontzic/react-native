@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -10,6 +10,7 @@
 #import <React/RCTUIKit.h> // TODO(macOS ISS#2323203)
 
 #import <React/RCTConvert.h>
+#import <React/RCTImageSource.h>
 
 #import "RCTImageLoader.h"
 #import "RCTImageShadowView.h"
@@ -65,6 +66,20 @@ RCT_EXPORT_METHOD(getSize:(NSURLRequest *)request
                                                }];
 }
 
+RCT_EXPORT_METHOD(getSizeWithHeaders:(RCTImageSource *)source
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+{
+  [self.bridge.imageLoader getImageSizeForURLRequest:source.request
+                                              block:^(NSError *error, CGSize size) {
+                                                if (error) {
+                                                  reject(@"E_GET_SIZE_FAILURE", nil, error);
+                                                  return;
+                                                }
+                                                resolve(@{@"width":@(size.width),@"height":@(size.height)});
+                                              }];
+}
+
 RCT_EXPORT_METHOD(prefetchImage:(NSURLRequest *)request
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
@@ -82,6 +97,13 @@ RCT_EXPORT_METHOD(prefetchImage:(NSURLRequest *)request
                                             }
                                             resolve(@YES);
                                           }];
+}
+
+RCT_EXPORT_METHOD(queryCache:(NSArray *)requests
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+{
+  resolve([self.bridge.imageLoader getImageCacheStatus:requests]);
 }
 
 @end

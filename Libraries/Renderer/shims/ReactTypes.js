@@ -7,15 +7,15 @@
  * @flow
  */
 
-/* eslint-disable no-use-before-define */
 export type ReactNode =
   | React$Element<any>
   | ReactPortal
   | ReactText
   | ReactFragment
   | ReactProvider<any>
-  | ReactConsumer<any>;
-/* eslint-enable no-use-before-define */
+  | ReactConsumer<any>
+  | ReactEventComponent
+  | ReactEventTarget;
 
 export type ReactEmpty = null | void | boolean;
 
@@ -56,12 +56,12 @@ export type ReactContext<T> = {
   $$typeof: Symbol | number,
   Consumer: ReactContext<T>,
   Provider: ReactProviderType<T>,
-  unstable_read: () => T,
 
   _calculateChangedBits: ((a: T, b: T) => number) | null,
 
   _currentValue: T,
   _currentValue2: T,
+  _threadCount: number,
 
   // DEV only
   _currentRenderer?: Object | null,
@@ -80,3 +80,112 @@ export type ReactPortal = {
 export type RefObject = {|
   current: any,
 |};
+
+export type ReactEventResponderEventType =
+  | string
+  | {name: string, passive?: boolean};
+
+export type ReactEventResponder = {
+  targetEventTypes?: Array<ReactEventResponderEventType>,
+  rootEventTypes?: Array<ReactEventResponderEventType>,
+  createInitialState?: (props: null | Object) => Object,
+  stopLocalPropagation: boolean,
+  onEvent?: (
+    event: ReactResponderEvent,
+    context: ReactResponderContext,
+    props: null | Object,
+    state: null | Object,
+  ) => void,
+  onEventCapture?: (
+    event: ReactResponderEvent,
+    context: ReactResponderContext,
+    props: null | Object,
+    state: null | Object,
+  ) => void,
+  onRootEvent?: (
+    event: ReactResponderEvent,
+    context: ReactResponderContext,
+    props: null | Object,
+    state: null | Object,
+  ) => void,
+  onMount?: (
+    context: ReactResponderContext,
+    props: null | Object,
+    state: null | Object,
+  ) => void,
+  onUnmount?: (
+    context: ReactResponderContext,
+    props: null | Object,
+    state: null | Object,
+  ) => void,
+  onOwnershipChange?: (
+    context: ReactResponderContext,
+    props: null | Object,
+    state: null | Object,
+  ) => void,
+};
+
+export type ReactEventComponentInstance = {|
+  currentFiber: mixed,
+  props: null | Object,
+  responder: ReactEventResponder,
+  rootEventTypes: null | Set<string>,
+  rootInstance: mixed,
+  state: null | Object,
+|};
+
+export type ReactEventComponent = {|
+  $$typeof: Symbol | number,
+  displayName?: string,
+  props: null | Object,
+  responder: ReactEventResponder,
+|};
+
+export type ReactEventTarget = {|
+  $$typeof: Symbol | number,
+  displayName?: string,
+  type: Symbol | number,
+|};
+
+type AnyNativeEvent = Event | KeyboardEvent | MouseEvent | Touch;
+
+export type ReactResponderEvent = {
+  nativeEvent: AnyNativeEvent,
+  target: Element | Document,
+  type: string,
+  passive: boolean,
+  passiveSupported: boolean,
+};
+
+export type ReactResponderDispatchEventOptions = {
+  discrete?: boolean,
+};
+
+export type ReactResponderContext = {
+  dispatchEvent: (
+    eventObject: Object,
+    listener: (Object) => void,
+    options: ReactResponderDispatchEventOptions,
+  ) => void,
+  isTargetWithinElement: (
+    childTarget: Element | Document,
+    parentTarget: Element | Document,
+  ) => boolean,
+  isTargetWithinEventComponent: (Element | Document) => boolean,
+  isTargetWithinEventResponderScope: (Element | Document) => boolean,
+  isPositionWithinTouchHitTarget: (x: number, y: number) => boolean,
+  addRootEventTypes: (
+    rootEventTypes: Array<ReactEventResponderEventType>,
+  ) => void,
+  removeRootEventTypes: (
+    rootEventTypes: Array<ReactEventResponderEventType>,
+  ) => void,
+  hasOwnership: () => boolean,
+  requestResponderOwnership: () => boolean,
+  requestGlobalOwnership: () => boolean,
+  releaseOwnership: () => boolean,
+  setTimeout: (func: () => void, timeout: number) => Symbol,
+  clearTimeout: (timerId: Symbol) => void,
+  getFocusableElementsInScope(): Array<HTMLElement>,
+  getActiveDocument(): Document,
+};

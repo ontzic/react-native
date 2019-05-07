@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -114,5 +114,11 @@
  * Defaults to `self`.
  */
 @property (nonatomic, readonly) RCTPlatformView *reactAccessibilityElement; // TODO(macOS ISS#2323203)
+
+/**
+ * Used in debugging to get a description of the view hierarchy rooted at
+ * the current view.
+ */
+- (NSString *)react_recursiveDescription;
 
 @end

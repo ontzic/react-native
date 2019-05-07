@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
-#import <React/RCTUIKit.h> // TODO(macOS ISS#2323203)
+#import <UIKit/UIScrollView.h>
 
 #import <React/RCTAutoInsetsProtocol.h>
 #import <React/RCTEventDispatcher.h>
@@ -14,12 +14,7 @@
 
 @protocol UIScrollViewDelegate;
 
-@interface RCTScrollView : RCTView <
-#if TARGET_OS_IPHONE // [TODO(macOS ISS#2323203)
-	UIScrollViewDelegate,
-#endif
-	RCTScrollableProtocol, RCTAutoInsetsProtocol
-> // ]TODO(macOS ISS#2323203)
+@interface RCTScrollView : RCTView <UIScrollViewDelegate, RCTScrollableProtocol, RCTAutoInsetsProtocol>
 
 - (instancetype)initWithEventDispatcher:(RCTEventDispatcher *)eventDispatcher NS_DESIGNATED_INITIALIZER;
 
@@ -49,8 +44,12 @@
 @property (nonatomic, assign) NSTimeInterval scrollEventThrottle;
 @property (nonatomic, assign) BOOL centerContent;
 @property (nonatomic, copy) NSDictionary *maintainVisibleContentPosition;
+@property (nonatomic, assign) BOOL scrollToOverflowEnabled;
 @property (nonatomic, assign) int snapToInterval;
+@property (nonatomic, assign) BOOL disableIntervalMomentum;
 @property (nonatomic, copy) NSArray<NSNumber *> *snapToOffsets;
+@property (nonatomic, assign) BOOL snapToStart;
+@property (nonatomic, assign) BOOL snapToEnd;
 @property (nonatomic, copy) NSString *snapToAlignment;
 
 // NOTE: currently these event props are only declared so we can export the
@@ -58,12 +57,10 @@
 // need to be coalesced before sending, for performance reasons.
 @property (nonatomic, copy) RCTDirectEventBlock onScrollBeginDrag;
 @property (nonatomic, copy) RCTDirectEventBlock onScroll;
+@property (nonatomic, copy) RCTDirectEventBlock onScrollToTop;
 @property (nonatomic, copy) RCTDirectEventBlock onScrollEndDrag;
 @property (nonatomic, copy) RCTDirectEventBlock onMomentumScrollBegin;
 @property (nonatomic, copy) RCTDirectEventBlock onMomentumScrollEnd;
-@property (nonatomic, copy) RCTDirectEventBlock onKeyDown; // TODO(macOS ISS#2323203)
-
-- (void)flashScrollIndicators; // TODO(macOS ISS#2323203)
 
 @end
 

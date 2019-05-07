@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2015-present, Facebook, Inc.
+ * Copyright (c) Facebook, Inc. and its affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -14,9 +14,8 @@
 #import "RCTAssert.h"
 #import "RCTBridge.h"
 #import "RCTBridge+Private.h"
-#import "RCTDevSettings.h"// TODO(OSS Candidate ISS#2710739)
 #import "RCTEventDispatcher.h"
-// TODO(OSS Candidate ISS#2710739): remove #import "RCTKeyCommands.h"
+#import "RCTKeyCommands.h"
 #import "RCTLog.h"
 #import "RCTPerformanceLogger.h"
 #import "RCTProfile.h"
@@ -32,10 +31,6 @@
 #import "RCTTVRemoteHandler.h"
 #import "RCTTVNavigationEventEmitter.h"
 #endif
-
-#if __has_include("RCTDevMenu.h") // [TODO(OSS Candidate ISS#2710739)
-#import "RCTDevMenu.h"
-#endif // ]TODO(OSS Candidate ISS#2710739)
 
 NSString *const RCTContentDidAppearNotification = @"RCTContentDidAppearNotification";
 
@@ -68,9 +63,7 @@ NSString *const RCTContentDidAppearNotification = @"RCTContentDidAppearNotificat
   }
 
   if (self = [super initWithFrame:CGRectZero]) {
-    /* [TODO(OSS Candidate ISS#2710739): don't set the background color on mac or ios so that the view is invisible during initial render
     self.backgroundColor = [UIColor whiteColor];
-    ]TODO(OSS Candidate ISS#2710739) */
 
     _bridge = bridge;
     _moduleName = moduleName;
@@ -177,22 +170,10 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 {
   [super layoutSubviews];
   _contentView.frame = self.bounds;
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
   _loadingView.center = (CGPoint){
     CGRectGetMidX(self.bounds),
     CGRectGetMidY(self.bounds)
   };
-#else // [TODO(macOS ISS#2323203)
-  NSRect bounds = self.bounds;
-  NSSize loadingViewSize = _loadingView.frame.size;
-  CGFloat scale = self.window.backingScaleFactor;
-  RCTAssert(scale != 0.0, @"Layout occurs before the view is in a window?");
-
-  _loadingView.frameOrigin = NSMakePoint(
-    RCTRoundPixelValue(bounds.origin.x + ((bounds.size.width - loadingViewSize.width) / 2), scale),
-    RCTRoundPixelValue(bounds.origin.y + ((bounds.size.height - loadingViewSize.height) / 2), scale)
-  );
-#endif // ]TODO(macOS ISS#2323203)
 }
 
 - (UIViewController *)reactViewController
@@ -202,11 +183,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 
 - (BOOL)canBecomeFirstResponder
 {
-#if !TARGET_OS_OSX // [TODO(macOS ISS#2323203)
   return YES;
-#else
-  return NO; // commit 01aba7e8: Merged PR 94656: Enable keyboard accessibility and support for focus ring drawing for button, textfields etc
-#endif // ]TODO(macOS ISS#2323203)
 }
 
 - (void)setLoadingView:(UIView *)loadingView
@@ -231,7 +208,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     if (_loadingViewFadeDuration > 0) {
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_loadingViewFadeDelay * NSEC_PER_SEC)),
                      dispatch_get_main_queue(), ^{
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
+
                        [UIView transitionWithView:self
                                          duration:self->_loadingViewFadeDuration
                                           options:UIViewAnimationOptionTransitionCrossDissolve
@@ -240,15 +217,6 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
                                        } completion:^(__unused BOOL finished) {
                                          [self->_loadingView removeFromSuperview];
                                        }];
-#elif TARGET_OS_OSX // [TODO(macOS ISS#2323203)
-                       [NSAnimationContext runAnimationGroup:^(__unused NSAnimationContext *context) {
-                         self->_loadingView.animator.alphaValue = 0.0;
-                       } completionHandler:^{
-                         [self->_loadingView removeFromSuperview];
-                         self->_loadingView.hidden = YES;
-                         self->_loadingView.alphaValue = 1.0;
-                       }];
-#endif // ]TODO(macOS ISS#2323203)
                      });
     } else {
       _loadingView.hidden = YES;
@@ -340,10 +308,10 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
   _contentView.sizeFlexibility = _sizeFlexibility;
 }
 
-- (RCTPlatformView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event // TODO(macOS ISS#2323203)
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
 {
   // The root view itself should never receive touches
-  RCTPlatformView *hitView = [super hitTest:point withEvent:event]; // TODO(macOS ISS#2323203)
+  UIView *hitView = [super hitTest:point withEvent:event];
   if (self.passThroughTouches && hitView == self) {
     return nil;
   }
@@ -375,17 +343,13 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 
   _intrinsicContentSize = intrinsicContentSize;
 
-  [self invalidateIntrinsicContentSize];
-#if !TARGET_OS_OSX // TODO(macOS ISS#2323203)
-  [self.superview setNeedsLayout];
-#else // [TODO(macOS ISS#2323203)
-	[self.superview setNeedsLayout:YES];
-#endif // ]TODO(macOS ISS#2323203)
-
   // Don't notify the delegate if the content remains invisible or its size has not changed
   if (bothSizesHaveAZeroDimension || sizesAreEqual) {
     return;
   }
+  
+  [self invalidateIntrinsicContentSize];
+  [self.superview setNeedsLayout];
 
   [_delegate rootViewDidChangeIntrinsicSize:self];
 }
@@ -412,25 +376,6 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 {
   [[_contentView touchHandler] cancel];
 }
-
-#if TARGET_OS_OSX // [TODO(macOS ISS#2323203)
-- (NSMenu *)menuForEvent:(NSEvent *)event
-{
-  NSMenu *menu = nil;
-#if __has_include("RCTDevMenu.h") && RCT_DEV
-  if ([[_bridge devSettings] isDevModeEnabled]) {
-    menu = [[_bridge devMenu] menu];
-  }
-#endif
-  if (menu == nil) {
-    menu = [super menuForEvent:event];
-  }
-  if (menu) {
-    [[_contentView touchHandler] willShowMenuWithEvent:event];
-  }
-  return menu;
-}
-#endif // ]TODO(macOS ISS#2323203)
 
 @end
 
