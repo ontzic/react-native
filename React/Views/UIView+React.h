@@ -116,6 +116,13 @@
 @property (nonatomic, readonly) RCTPlatformView *reactAccessibilityElement; // TODO(macOS ISS#2323203)
 
 /**
+ * Accessibility properties
+ */
+@property (nonatomic, copy) NSArray <NSString *> *accessibilityActions;
+@property (nonatomic, copy) NSString *accessibilityRole;
+@property (nonatomic, copy) NSArray <NSString *> *accessibilityStates;
+
+/**
  * Used in debugging to get a description of the view hierarchy rooted at
  * the current view.
  */

@@ -10,10 +10,9 @@
 
 'use strict';
 
-const AnimatedNode = require('AnimatedNode');
-import type {SemanticOrDynamicColorType} from 'normalizeColor' // TODO(macOS ISS#2323203)
+const AnimatedNode = require('../Animated/src/nodes/AnimatedNode');
 
-export type ColorValue = null | string | SemanticOrDynamicColorType; // TODO(macOS ISS#2323203)
+export type ColorValue = null | string;
 export type DimensionValue = null | number | string | AnimatedNode;
 
 /**
